@@ -6,6 +6,7 @@ from dash import dcc, html, callback, dash_table, no_update, State, ctx
 import dash_mantine_components as dmc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
+from flask_login import current_user
 
 
 def load_dataframe():
@@ -45,7 +46,7 @@ faculty_selection = dmc.Select(
     searchable=True,
     data=faculties,
     value=faculties[0],
-    clearable=True,
+
 )
 
 dash.register_page(__name__,
@@ -56,153 +57,165 @@ dash.register_page(__name__,
                    description='Histograms are the new bar charts.'
                    )
 
-layout = html.Div(children=[
-    faculty_selection,
-    dmc.Grid(
-        children=[
-            dmc.Col(
-                id="total_programmes",
-                span="auto"),
-            dmc.Col(
-                id="total_modules",
-                span="auto"),
-            dmc.Col(
-                id="total_students",
-                span="auto"),
-        ],
-        gutter="xl",
-        style={"marginBottom": "20px", "marginTop": "20px"}
-    ),
-    dmc.Grid(
-        children=[
-            dmc.Col(
-                dmc.Paper(
-                    children=[dcc.Graph(id="decision_distribution")],
-                    shadow="xs",
-                ), span="auto"),
-            dmc.Col([
-                dmc.Paper(
-                    children=[
-                        dmc.Button("🡠", id='back-button', variant="subtle",
-                                   style={'display': 'none'}),
-                        dcc.Graph(
-                            id="academicyear_chart"
-                        )
-                    ],
-                    shadow="xs",
-                )
-            ], span="auto"),
-            dmc.Col(
-                dmc.Paper(
-                    children=[
-                        dcc.Graph(
-                            id="gender_chart", config={"displayModeBar": "hover"}
-                        )
-                    ],
-                    shadow="xs",
-                ), span="auto"),
-        ],
-        justify="center",
-        align="center",
-        gutter="md", style={"marginTop": "10px", "marginBottom": "10px"}
-    ),
-    dmc.Grid(
-        children=[
 
-            dmc.Col(
-                dmc.Paper(
-                    id="tbl",
-                    children=[],
-                    shadow="xs",
-                    style={"padding": "10px"}
-                ), span="auto"),
+def layout(**kwargs):
+    if not current_user.is_authenticated:
+        return dmc.Paper(
+            children=[
+                html.Div(["Please ", dcc.Link(
+                    "login", href="/login"), " to continue"])
+            ],
+            shadow="xs",
+            style={"width": "400px", "margin": "20px auto", "padding": "20px"}
+        )
 
-        ], style={"marginTop": "10px", "marginBottom": "20px"}
-    ),
-    html.Div(id="selected_rows", children=[
-        dmc.Modal(
-            title="Student Information",
-            size="80%",
-            id="modal",
-            zIndex=10000,
-            children=[dmc.Text("This is a vertically centered modal.")],
+    layout = html.Div(children=[
+        faculty_selection,
+        dmc.Grid(
+            children=[
+                dmc.Col(
+                    id="total_programmes",
+                    span="auto"),
+                dmc.Col(
+                    id="total_modules",
+                    span="auto"),
+                dmc.Col(
+                    id="total_students",
+                    span="auto"),
+            ],
+            gutter="xl",
+            style={"marginBottom": "20px", "marginTop": "20px"}
         ),
-    ], style={'marginBottom': "20px"}),
-    dmc.Select(
-        label="Select Programme",
-        searchable=True,
-        id="programme_selection",
-        clearable=True,
-    ),
-    dmc.Paper(
-        children=[dcc.Graph(id="module_performance")],
-        shadow="xs",
-        style={"marginTop": "20px", "padding": "10px"}
-    ),
-    dmc.Grid(
-        children=[
-            dmc.Col([
-                dmc.Select(
-                    label="Select Attendance Type",
-                    searchable=True,
-                    id="attendancetype_selection",
-                    clearable=True,
-                ),
-
-            ], span="auto"),
-            dmc.Col([
-                dmc.Select(
-                    label="Select Academic Year",
-                    searchable=True,
-                    id="academicyear_selection",
-                    clearable=True,
-                ),
-
-            ], span="auto"),
-            dmc.Col([
-                dmc.Select(
-                    label="Select Semester",
-                    searchable=True,
-                    id="semester_selection",
-                    clearable=True,
-                )
-
-            ], span="auto"),
-
-        ], style={"marginTop": "10px", "marginBottom": "20px"}
-    ),
-    dmc.Grid(
-        children=[
-
-            dmc.Col([
-                dmc.Paper(
-                    children=[dcc.Graph(id="programme_decisions")],
-                    shadow="xs",
-                    style={"padding": "10px"}
-                )
-            ], span="auto"),
-            dmc.Col(
-
-                dmc.Paper(
-                    id="programme-decision-table",
-                    children=[],
-                    shadow="xs",
-                    style={"padding": "10px"}
-                ), span="auto"),
-
-        ], style={"marginTop": "10px", "marginBottom": "20px"}
-    ),
-    html.Div(id="programme_selected_rows", children=[
-        dmc.Modal(
-            title="Student Information",
-            size="80%",
-            id="modal2",
-            zIndex=10000,
-            children=[dmc.Text("This is a vertically centered modal.")],
+        dmc.Grid(
+            children=[
+                dmc.Col(
+                    dmc.Paper(
+                        children=[dcc.Graph(id="decision_distribution")],
+                        shadow="xs",
+                    ), span="auto"),
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dmc.Button("🡠", id='back-button', variant="subtle",
+                                       style={'display': 'none'}),
+                            dcc.Graph(
+                                id="academicyear_chart"
+                            )
+                        ],
+                        shadow="xs",
+                    )
+                ], span="auto"),
+                dmc.Col(
+                    dmc.Paper(
+                        children=[
+                            dcc.Graph(
+                                id="gender_chart", config={"displayModeBar": "hover"}
+                            )
+                        ],
+                        shadow="xs",
+                    ), span="auto"),
+            ],
+            justify="center",
+            align="center",
+            gutter="md", style={"marginTop": "10px", "marginBottom": "10px"}
         ),
-    ], style={'marginBottom': "20px"}),
+        dmc.Grid(
+            children=[
 
-], style={"width": "90%", "margin": "40px auto"}),
+                dmc.Col(
+                    dmc.Paper(
+                        id="tbl",
+                        children=[],
+                        shadow="xs",
+                        style={"padding": "10px"}
+                    ), span="auto"),
+
+            ], style={"marginTop": "10px", "marginBottom": "20px"}
+        ),
+        html.Div(id="selected_rows", children=[
+            dmc.Modal(
+                title="Student Information",
+                size="80%",
+                id="modal",
+                zIndex=10000,
+                children=[dmc.Text("This is a vertically centered modal.")],
+            ),
+        ], style={'marginBottom': "20px"}),
+        dmc.Select(
+            label="Select Programme",
+            searchable=True,
+            id="programme_selection",
+
+        ),
+        dmc.Paper(
+            children=[dcc.Graph(id="module_performance")],
+            shadow="xs",
+            style={"marginTop": "20px", "padding": "10px"}
+        ),
+        dmc.Grid(
+            children=[
+                dmc.Col([
+                    dmc.Select(
+                        label="Select Attendance Type",
+                        searchable=True,
+                        id="attendancetype_selection",
+
+                    ),
+
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Select(
+                        label="Select Academic Year",
+                        searchable=True,
+                        id="academicyear_selection",
+                    ),
+
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Select(
+                        label="Select Semester",
+                        searchable=True,
+                        id="semester_selection",
+
+                    )
+
+                ], span="auto"),
+
+            ], style={"marginTop": "10px", "marginBottom": "20px"}
+        ),
+        dmc.Grid(
+            children=[
+
+                dmc.Col([
+                    dmc.Paper(
+                        children=[dcc.Graph(id="programme_decisions")],
+                        shadow="xs",
+                        style={"padding": "10px"}
+                    )
+                ], span="auto"),
+                dmc.Col(
+
+                    dmc.Paper(
+                        id="programme-decision-table",
+                        children=[],
+                        shadow="xs",
+                        style={"padding": "10px"}
+                    ), span="auto"),
+
+            ], style={"marginTop": "10px", "marginBottom": "20px"}
+        ),
+        html.Div(id="programme_selected_rows", children=[
+            dmc.Modal(
+                title="Student Information",
+                size="80%",
+                id="modal2",
+                zIndex=10000,
+                children=[dmc.Text("This is a vertically centered modal.")],
+            ),
+        ], style={'marginBottom': "20px"}),
+
+    ], style={"width": "90%", "margin": "40px auto"}),
+    return layout
 
 
 # Callbacks

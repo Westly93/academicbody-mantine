@@ -6,6 +6,7 @@ import plotly.express as px
 from dash.dependencies import Output, Input
 import plotly.graph_objs as go
 import dash_mantine_components as dmc
+from flask_login import current_user
 
 
 dash.register_page(__name__, path='/all-stats')
@@ -178,104 +179,117 @@ def gender_chart():
     }
 
 
-layout = html.Div([
-    dmc.Grid(
-        children=[
-            dmc.Col(dmc.Paper(
-                children=[
-                    dmc.Text(f"Total Programmes", weight=500),
-                    dmc.Text(
-                        f"{data.programme.nunique()} programmes", size="xs")
-                ],
-                shadow="xs",
-                style={
-                    "padding": "10px"
-                }
-            ), span="auto"),
-            dmc.Col(dmc.Paper(
-                children=[
-                    dmc.Text(f"Total Modules", weight=500),
-                    dmc.Text(f"{data.module.nunique()} modules", size="xs")
-                ],
-                shadow="xs",
-                style={
-                    "padding": "10px"
-                }
-            ), span="auto"),
-            dmc.Col(dmc.Paper(
-                children=[
-                    dmc.Text(f"Total Students", weight=500),
-                    dmc.Text(f"{data.regnum.nunique()} Students", size="xs")
-                ],
-                shadow="xs",
-                style={
-                    "padding": "10px"
-                }
-            ), span="auto"),
-        ],
-        gutter="xl",
-        style={"marginBottom": "20px"}
-    ),
-    dmc.Grid(
-        children=[
-            dmc.Col([
-                dmc.Paper(
-                    children=[dcc.Graph(id="gender-distribution-stats",
-                                        figure=gender_chart())],
-                    shadow="xs",
-                )
-
-            ], span="auto"),
-            dmc.Col([
-                dmc.Paper(
+def layout(**kwargs):
+    if not current_user.is_authenticated:
+        return dmc.Paper(
+            children=[
+                html.Div(["Please ", dcc.Link(
+                    "login", href="/login"), " to continue"])
+            ],
+            shadow="xs",
+            style={"width": "400px", "margin": "20px auto", "padding": "20px"}
+        )
+    layout = html.Div([
+        dmc.Grid(
+            children=[
+                dmc.Col(dmc.Paper(
                     children=[
-                        dmc.Button("🡠", id='back_button', variant="subtle",
-                                   style={'display': 'none'}),
-                        dcc.Graph(id="academicyear-stats")
+                        dmc.Text(f"Total Programmes", weight=500),
+                        dmc.Text(
+                            f"{data.programme.nunique()} programmes", size="xs")
                     ],
                     shadow="xs",
-                )
-
-            ], span="auto"),
-            dmc.Col([
-                dmc.Paper(
+                    style={
+                        "padding": "10px"
+                    }
+                ), span="auto"),
+                dmc.Col(dmc.Paper(
                     children=[
-                        dcc.Graph(id="faculty-chart", figure=faculty_chart())
+                        dmc.Text(f"Total Modules", weight=500),
+                        dmc.Text(f"{data.module.nunique()} modules", size="xs")
                     ],
                     shadow="xs",
-                )
-
-            ], span="auto"),
-        ],
-        gutter="xl",
-    ),
-
-    dmc.Grid(
-        children=[
-            dmc.Col([
-                dmc.Paper(
+                    style={
+                        "padding": "10px"
+                    }
+                ), span="auto"),
+                dmc.Col(dmc.Paper(
                     children=[
-                        dmc.Select(
-                            label="Select Count",
-                            id="count-selection",
-                            value="30",
-                            data=["10", "20", "30", "40", "50",
-                                  "60", "70", "80", "90", "100"],
-                            style={"width": 200, "marginBottom": 10},
-                        ),
-                        dcc.Graph(id="hieghst-enrolling-programmes",
-                                  figure=hieghst_enrolling_programmes())
+                        dmc.Text(f"Total Students", weight=500),
+                        dmc.Text(
+                            f"{data.regnum.nunique()} Students", size="xs")
                     ],
                     shadow="xs",
-                    style={"padding": "10px"}
-                ),
+                    style={
+                        "padding": "10px"
+                    }
+                ), span="auto"),
+            ],
+            gutter="xl",
+            style={"marginBottom": "20px"}
+        ),
+        dmc.Grid(
+            children=[
+                dmc.Col([
+                    dmc.Paper(
+                        children=[dcc.Graph(id="gender-distribution-stats",
+                                            figure=gender_chart())],
+                        shadow="xs",
+                    )
 
-            ], span="auto")
-        ],
-        gutter="xl",
-        style={"marginTop": "20px", "marginBottom": "20px"}
-    )
-], style={"width": "90%", "margin": "20px auto"})
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dmc.Button("🡠", id='back_button', variant="subtle",
+                                       style={'display': 'none'}),
+                            dcc.Graph(id="academicyear-stats")
+                        ],
+                        shadow="xs",
+                    )
+
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dcc.Graph(id="faculty-chart",
+                                      figure=faculty_chart())
+                        ],
+                        shadow="xs",
+                    )
+
+                ], span="auto"),
+            ],
+            gutter="xl",
+        ),
+
+        dmc.Grid(
+            children=[
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dmc.Select(
+                                label="Select Count",
+                                id="count-selection",
+                                value="30",
+                                data=["10", "20", "30", "40", "50",
+                                      "60", "70", "80", "90", "100"],
+                                style={"width": 200, "marginBottom": 10},
+                            ),
+                            dcc.Graph(id="hieghst-enrolling-programmes",
+                                      figure=hieghst_enrolling_programmes())
+                        ],
+                        shadow="xs",
+                        style={"padding": "10px"}
+                    ),
+
+                ], span="auto")
+            ],
+            gutter="xl",
+            style={"marginTop": "20px", "marginBottom": "80px"}
+        )
+    ], style={"width": "90%", "margin": "20px auto"})
+    return layout
 
 # callbacks
 # update programme

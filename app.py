@@ -1,12 +1,16 @@
 import dash
 from datetime import datetime
 import pandas as pd
-import dash_auth
-from dash import html, State
+# import dash_auth
+from dash import html, State, dcc, ALL
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
+from flask import Flask, request, redirect, session
+from flask_login import login_user, LoginManager, UserMixin, logout_user, current_user
+from dash.exceptions import PreventUpdate
+from utils.login_handler import restricted_page
 
 current_year = datetime.now().year
 
@@ -16,9 +20,12 @@ def get_icon(icon):
 
 
 MSU_LOGO = "/assets/images/msu-logo.png"
+# Exposing the Flask Server to enable configuring it for logging in
+server = Flask(__name__)
 
 app = dash.Dash(
     __name__,
+    server=server,
     use_pages=True,
     suppress_callback_exceptions=True,
     external_stylesheets=[
@@ -27,14 +34,47 @@ app = dash.Dash(
         dbc.themes.SPACELAB
     ],
 )
-app.secret_key = 'testing321'
-auth = dash_auth.BasicAuth(
-    app,
-    {
-        "westonmf": "testing321",
-        "chaibvan": "testing321"
-    }
-)
+
+
+@server.route('/all-stats', methods=['GET'])
+def statistics_redirect():
+    if not current_user.is_authenticated:
+        return redirect('/login')
+
+
+@server.route('/', methods=['GET'])
+def home_redirect():
+    if not current_user.is_authenticated:
+        return redirect('/login')
+
+
+@server.route('/graduants', methods=['GET'])
+def graduants_redirect():
+    if not current_user.is_authenticated:
+        return redirect('/login')
+    return redirect('/graduants')
+
+
+@server.route('/login', methods=['POST'])
+def login_button_click():
+    if request.form:
+        username = request.form['username']
+        password = request.form['password']
+        if VALID_USERNAME_PASSWORD.get(username) is None:
+            return """invalid username and/or password <a href='/login'>login here</a>"""
+        if VALID_USERNAME_PASSWORD.get(username) == password:
+            login_user(User(username))
+            if 'url' in session:
+                if session['url']:
+                    url = session['url']
+                    session['url'] = None
+                    return redirect(url)  # redirect to target url
+            return redirect('/')  # redirect to home
+        return """invalid username and/or password <a href='/login'>login here</a>"""
+
+
+guest_links = [page for page in dash.page_registry.values()
+               if page['path'] != "/login"]
 navbar = dbc.Navbar(
     dbc.Container(
         [
@@ -54,20 +94,7 @@ navbar = dbc.Navbar(
             ),
             dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
             dbc.Collapse(
-                dbc.Nav(
-                    [
-                        dbc.NavLink(
-                            [
-                                html.Div(page["name"], className="ms-2"),
-                            ],
-                            href=page["path"],
-                            active="exact",
-                        )
-                        for page in dash.page_registry.values()
-                    ],
-                    className="ms-auto",
-                    navbar=True,
-                ),
+
                 id="navbar-collapse",
                 is_open=False,
                 navbar=True,
@@ -81,23 +108,33 @@ navbar = dbc.Navbar(
 )
 
 
-header = dmc.Header(
-    height=60, children=[dmc.Grid(
-        children=[
-            dmc.Group(
-                children=[
-                    dmc.NavLink(
-                        label=page['name'],
-                        icon=get_icon(icon="bi:house-door-fill"),
+# Keep this out of source code repository - save in a file or a database
+#  passwords should be encrypted
+VALID_USERNAME_PASSWORD = {"test": "test", "hello": "world"}
 
-                    )
-                    for page in dash.page_registry.values()
-                ],
-            )
-        ],
-        gutter="xl",
-    )], style={"backgroundColor": "#9c86e2", "display": "flex", "alignItems": "center"}
-)
+
+# Updating the Flask Server configuration with Secret Key to encrypt the user session cookie
+server.config.update(SECRET_KEY="testing321#")
+
+# Login manager object will be used to login / logout users
+login_manager = LoginManager()
+login_manager.init_app(server)
+login_manager.login_view = "/login"
+
+
+class User(UserMixin):
+    # User data model. It has to have at least self.id as a minimum
+    def __init__(self, username):
+        self.id = username
+
+
+@login_manager.user_loader
+def load_user(username):
+    """This function loads the user by user id. Typically this looks up the user from a user database.
+    We won't be registering or looking up users in this example, since we'll just login using LDAP server.
+    So we'll simply return a User object with the passed in username.
+    """
+    return User(username)
 
 
 app.layout = dmc.MantineProvider(
@@ -118,8 +155,12 @@ app.layout = dmc.MantineProvider(
         dmc.Title(f"Academic Body Results Presentation",
                   order=2, style={"marginBottom": "20px", "marginTop": "60px", "display": "flex", "justifyContent": "center", "alignItems": "center"}),
         html.Div([
+            dcc.Location(id="url"),
+            html.Div(id="user-status-header"),
             dash.page_container
         ], style={'marginTop': "40px"}),
+        html.Br(),
+        html.Hr(),
         dmc.Footer(
             height=60,
             fixed=True,
@@ -160,6 +201,106 @@ app.layout = dmc.MantineProvider(
     ],
 )
 # Calbacks
+# login callbacks
+
+
+@app.callback(
+    Output("navbar-collapse", "children"),
+    Output('url', 'pathname'),
+    Input("url", "pathname"),
+    Input({'index': ALL, 'type': 'redirect'}, 'n_intervals')
+)
+def update_authentication_status(path, n):
+    # logout redirect
+    if n:
+        if not n[0]:
+            return '', dash.no_update
+        else:
+
+            return '', '/login'
+
+    # test if user is logged in
+    if current_user.is_authenticated:
+        if path == '/login':
+            nav = dbc.Nav(
+                [
+                    dbc.NavLink(
+                        [
+                            html.Div(page["name"], className="ms-2"),
+                        ],
+                        href=page["path"],
+                        active="exact",
+                    )
+                    for page in guest_links
+                ],
+                className="ms-auto",
+                navbar=True,
+            ),
+            return nav, '/'
+        guest_links = [page for page in dash.page_registry.values()
+                       if page['path'] != "/login"]
+        nav = dbc.Nav(
+            [
+                dbc.NavLink(
+                    [
+                        html.Div(page["name"], className="ms-2"),
+                    ],
+                    href=page["path"],
+                    active="exact",
+                )
+                for page in guest_links
+            ],
+            className="ms-auto",
+            navbar=True,
+        ),
+        return nav, dash.no_update
+    else:
+        # if page is restricted, redirect to login and save path
+        if path in restricted_page:
+            session['url'] = path
+            guest_links = [page for page in dash.page_registry.values()
+                           if page['path'] == "/login"]
+            nav = dbc.Nav(
+                [
+                    dbc.NavLink(
+                        [
+                            html.Div(page["name"], className="ms-2"),
+                        ],
+                        href=page["path"],
+                        active="exact",
+                    )
+                    for page in guest_links
+                ],
+                className="ms-auto",
+                navbar=True,
+            ),
+            return nav, '/login'
+
+    # if path not login and logout display login link
+    if current_user and path not in ['/login', '/logout']:
+        guest_links = [page for page in dash.page_registry.values()
+                       if page['path'] == "/login"]
+        nav = dbc.Nav(
+            [
+                dbc.NavLink(
+                    [
+                        html.Div(page["name"], className="ms-2"),
+                    ],
+                    href=page["path"],
+                    active="exact",
+                )
+                for page in guest_links
+            ],
+            className="ms-auto",
+            navbar=True,
+        ),
+        return nav, dash.no_update
+
+    # if path login and logout hide links
+    if path in ['/login', '/logout']:
+        return '', dash.no_update
+
+# navbar collapse callbacks
 
 
 @app.callback(

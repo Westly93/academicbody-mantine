@@ -6,6 +6,8 @@ import plotly.express as px
 from dash.dependencies import Output, Input
 import plotly.graph_objs as go
 import dash_mantine_components as dmc
+import dash_ag_grid as dag
+from flask_login import current_user
 
 
 dash.register_page(__name__, path='/graduants')
@@ -170,48 +172,241 @@ def gender_chart():
     }
 
 
-layout = html.Div([
-    dmc.Grid(
-        children=[
+def layout(**kwargs):
+    if not current_user.is_authenticated:
+        return dmc.Paper(
+            children=[
+                html.Div(["Please ", dcc.Link(
+                    "login", href="/login"), " to continue"])
+            ],
+            shadow="xs",
+            style={"width": "400px", "margin": "20px auto", "padding": "20px"}
+        )
+    layout = html.Div([
+        dmc.Grid(
+            children=[
 
-            dmc.Col([
-                dmc.Paper(
-                    children=[
-                        dmc.Button("🡠", id='back-btn', variant="subtle",
-                                   style={'display': 'none'}),
-                        dcc.Graph(id="programmetype_distribution",
-                                  config={"displayModeBar": "hover"}),
-                    ],
-                    shadow="xs",
-                )
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dmc.Button("🡠", id='back-btn', variant="subtle",
+                                       style={'display': 'none'}),
+                            dcc.Graph(id="programmetype_distribution",
+                                      config={"displayModeBar": "hover"}),
+                        ],
+                        shadow="xs",
+                    )
 
-            ], span="auto"),
-            dmc.Col([
-                dmc.Paper(
-                    children=[dcc.Graph(id="gender_distribution",
-                                        config={"displayModeBar": "hover"},
-                                        figure=gender_chart())],
-                    shadow="xs",
-                )
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Paper(
+                        children=[dcc.Graph(id="gender_distribution",
+                                            config={"displayModeBar": "hover"},
+                                            figure=gender_chart())],
+                        shadow="xs",
+                    )
 
-            ], span="auto"),
-            dmc.Col([
-                dmc.Paper(
-                    children=[
-                        dmc.Button("🡠", id='back-bttn', variant="subtle",
-                                   style={'display': 'none'}),
-                        dcc.Graph(id="faculty_distribution",
-                                  config={"displayModeBar": "hover"}),
-                    ],
-                    shadow="xs",
-                )
+                ], span="auto"),
+                dmc.Col([
+                    dmc.Paper(
+                        children=[
+                            dmc.Button("🡠", id='back-bttn', variant="subtle",
+                                       style={'display': 'none'}),
+                            dcc.Graph(id="faculty_distribution",
+                                      config={"displayModeBar": "hover"}),
+                        ],
+                        shadow="xs",
+                    )
 
-            ], span="auto"),
+                ], span="auto"),
 
-        ], style={"marginTop": "10px", "marginBottom": "20px"}
-    )
-], style={"width": "90%", "margin": "20px auto"})
+            ], style={"marginTop": "10px", "marginBottom": "20px"}
+        ),
+        dmc.Grid(
+            children=[
+                dmc.Col([
+                    dmc.Paper(
+                        id="programmetype-table",
+                        children=[],
+                        shadow="xs",
+                        style={"padding": "10px"}
+                    ),
+                ], span="auto"),
+            ],
+            gutter="xl",
+        ),
+        html.Div(id="programmetype_selected_rows", children=[
+            dmc.Modal(
+                title="Student Information",
+                size="80%",
+                id="programmetype-modal",
+                zIndex=10000,
+                children=[dmc.Text("This is a vertically centered modal.")],
+            ),
+        ], style={'marginBottom': "80px"}),
+    ], style={"width": "90%", "margin": "20px auto"})
+    return layout
 # callbacks
+# programmetype table
+
+
+@callback(
+    Output('programmetype-table', "children"),
+    Input('programmetype_distribution', "clickData"),
+)
+def programmetype_table(click_data):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    programmetypes = data['programmetype'].unique().tolist()
+    if trigger_id == 'programmetype_distribution':
+
+        # get vendor name from clickData
+        if click_data is not None:
+            programmetype = click_data['points'][0]['label']
+            # print(academicyear.split('.'))
+            if programmetype in programmetypes:
+
+                new_df = data[data['programmetype'] == programmetype]
+                # print("You clicked", new_df)
+                ag_table = html.Div([dmc.Text(f"{programmetype}", weight=500),
+                                    dag.AgGrid(
+                    id="programmetype_table",
+                    rowData=new_df.to_dict('records'),
+                    columnDefs=[
+                        {'field': 'regnum'},
+                        {'field': 'firstnames'},
+                        {'field': 'surname'},
+                        {'field': 'programmecode'}
+                    ],
+                    columnSize="sizeToFit",
+                    defaultColDef={"filter": True},
+                    dashGridOptions={
+                        "rowSelection": "single", "animateRows": False},
+                )])
+                return ag_table
+
+        else:
+            new_df = data[data["programmetype"] == programmetypes[0]]
+            ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
+                                dag.AgGrid(
+                id="programmetype_table",
+                rowData=new_df.to_dict('records'),
+                columnDefs=[
+                    {'field': 'regnum'},
+                    {'field': 'firstnames'},
+                    {'field': 'surname'},
+                    {'field': 'programmecode'}
+                ],
+                columnSize="sizeToFit",
+                defaultColDef={"filter": True},
+                dashGridOptions={
+                    "rowSelection": "single", "animateRows": False},
+            )]),
+            return ag_table
+    else:
+        new_df = data[data["programmetype"] == programmetypes[0]]
+        ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
+                            dag.AgGrid(
+            id="programmetype_table",
+            rowData=new_df.to_dict('records'),
+            columnDefs=[
+                {'field': 'regnum'},
+                {'field': 'firstnames'},
+                {'field': 'surname'},
+                {'field': 'programmecode'}
+            ],
+            columnSize="sizeToFit",
+            defaultColDef={"filter": True},
+            dashGridOptions={"rowSelection": "single", "animateRows": False},
+        )])
+        return ag_table
+
+# output selected rows
+
+
+@ callback(
+    Output("programmetype-modal", "opened"),
+    Output("programmetype-modal", "children"),
+    Input("programmetype_table", "n_clicks"),
+    Input("programmetype_table", "selectedRows"),
+    State("programmetype-modal", "opened"),
+    prevent_initial_call=True,
+)
+def programmetype_selected_rows(n_clicks, selected_rows, opened):
+    ctx = dash.callback_context
+    # print(ctx.triggered[0]['prop_id'])
+    children = []
+    if ctx.triggered[0]['prop_id'] == "programmetype_table.selectedRows":
+        if selected_rows:
+            regnum = selected_rows[0]["regnum"]
+            student_info = data[data['regnum'] == regnum]
+            info = html.Div([
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Registration Number"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['regnum'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("First names"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['firstnames'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Surname"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['surname'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(
+                            dmc.Highlight(
+                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
+                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
+                            ), span=6
+                        )
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Programme"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['programme'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Text("Modules", weight=500),
+                dag.AgGrid(
+                    id="row-selection-popup-popup",
+                    rowData=student_info.to_dict("records"),
+                    columnDefs=[
+                        {'field': 'module'},
+                        {'field': 'mark'},
+                        {'field': 'grade'}],
+                    columnSize="sizeToFit",
+                    defaultColDef={"filter": True},
+                    dashGridOptions={
+                        "rowSelection": "single", "animateRows": False},
+                ),
+
+            ])
+            children.append(info)
+            return not opened, children
+        else:
+            return dash.no_update, dash.no_update
+    else:
+        return dash.no_update, dash.no_update
+
 # faculty distribution drill through
 
 

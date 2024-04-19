@@ -14,7 +14,7 @@ dash.register_page(__name__, path='/all-stats')
 
 def load_dataframe():
     data = pd.read_csv("./data/new_data.csv")
-    data = data.drop(columns=['mark.1', 'id'])
+    # data = data.drop(columns=['mark.1', 'id'])
     data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})

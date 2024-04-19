@@ -36,7 +36,7 @@ app = dash.Dash(
 )
 
 
-@server.route('/all-stats', methods=['GET'])
+""" @server.route('/all-stats', methods=['GET'])
 def statistics_redirect():
     if not current_user.is_authenticated:
         return redirect('/login')
@@ -52,7 +52,7 @@ def home_redirect():
 def graduants_redirect():
     if not current_user.is_authenticated:
         return redirect('/login')
-    return redirect('/graduants')
+    return redirect('/graduants') """
 
 
 @server.route('/login', methods=['POST'])

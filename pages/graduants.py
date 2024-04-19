@@ -15,7 +15,7 @@ dash.register_page(__name__, path='/graduants')
 
 def load_dataframe():
     data = pd.read_csv("./data/new_data.csv")
-    data = data.drop(columns=['mark.1', 'id'])
+    # data = data.drop(columns=['id'])
     data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
@@ -266,7 +266,8 @@ def programmetype_table(click_data):
             # print(academicyear.split('.'))
             if programmetype in programmetypes:
 
-                new_df = data[data['programmetype'] == programmetype]
+                new_df = data[data['programmetype'] == programmetype].drop_duplicates(
+                    ['regnum'], keep='last')
                 # print("You clicked", new_df)
                 ag_table = html.Div([dmc.Text(f"{programmetype}", weight=500),
                                     dag.AgGrid(
@@ -286,7 +287,8 @@ def programmetype_table(click_data):
                 return ag_table
 
         else:
-            new_df = data[data["programmetype"] == programmetypes[0]]
+            new_df = data[data["programmetype"] == programmetypes[0]
+                          ].drop_duplicates(['regnum'], keep='last')
             ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
                                 dag.AgGrid(
                 id="programmetype_table",
@@ -304,7 +306,8 @@ def programmetype_table(click_data):
             )]),
             return ag_table
     else:
-        new_df = data[data["programmetype"] == programmetypes[0]]
+        new_df = data[data["programmetype"] == programmetypes[0]
+                      ].drop_duplicates(['regnum'], keep='last')
         ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
                             dag.AgGrid(
             id="programmetype_table",
@@ -425,7 +428,7 @@ def faculty_distribution(click_data, n_clicks):
         # get vendor name from clickData
         if click_data is not None:
             faculty = click_data['points'][0]['label']
-            print(faculty)
+
             if faculty in data['faculty'].unique().tolist():
                 grouped_data = data[data["faculty"] == faculty].groupby(by="programme")[
                     'regnum'].nunique().sort_values(ascending=True).reset_index(name="Students")
@@ -508,7 +511,7 @@ def grade_distribution(click_data, n_clicks):
                     x="grade",
                     y="Students",
                     # orientation='h',
-                    title=f"Student Distribution: {programmetype}",
+                    title=f"Grade Distribution: {programmetype}",
                     color="grade",
                     template="plotly_white"
 

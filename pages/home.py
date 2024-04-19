@@ -11,7 +11,7 @@ from flask_login import current_user
 
 def load_dataframe():
     data = pd.read_csv("./data/new_data.csv")
-    data = data.drop(columns=['mark.1', 'id'])
+    # data = data.drop(columns=['mark.1', 'id'])
     data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
@@ -790,7 +790,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     df = data[(data['faculty'] == faculty) & (data['programme'] == programme) & (data['attendancetype']
-                                                                                 == attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))]
+                                                                                 == attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].drop_duplicates(['regnum'], keep='last')
     decisions = df['decision'].unique().tolist()
     if trigger_id == 'programme_decisions':
 
@@ -838,22 +838,29 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
             )]),
             return ag_table
     else:
-        new_df = df[df["decision"] == decisions[0]]
-        ag_table = html.Div([dmc.Text(f"{decisions[0]}", weight=500),
-                            dag.AgGrid(
-            id="programme_decision_table",
-            rowData=new_df.to_dict('records'),
-            columnDefs=[
-                {'field': 'regnum'},
-                {'field': 'firstnames'},
-                {'field': 'surname'},
-                {'field': 'programmecode'}
-            ],
-            columnSize="sizeToFit",
-            defaultColDef={"filter": True},
-            dashGridOptions={"rowSelection": "single", "animateRows": False},
-        )])
-        return ag_table
+        if len(decisions) > 0:
+            new_df = df[df["decision"] == decisions[0]]
+            ag_table = html.Div([dmc.Text(f"{decisions[0]}", weight=500),
+                                dag.AgGrid(
+                id="programme_decision_table",
+                rowData=new_df.to_dict('records'),
+                columnDefs=[
+                    {'field': 'regnum'},
+                    {'field': 'firstnames'},
+                    {'field': 'surname'},
+                    {'field': 'programmecode'}
+                ],
+                columnSize="sizeToFit",
+                defaultColDef={"filter": True},
+                dashGridOptions={
+                    "rowSelection": "single", "animateRows": False},
+            )])
+            return ag_table
+        else:
+            return dmc.Alert(
+                "Based on the selection you have made there is no data to display",
+                title="No data to display",
+            )
 
 # decisions
 
@@ -866,7 +873,8 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
 def decision_table(click_data, faculty):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    df = data[data['faculty'] == faculty]
+    df = data[data['faculty'] == faculty].drop_duplicates(
+        ['regnum'], keep='last')
     decisions = df['decision'].unique().tolist()
     if trigger_id == 'decision_distribution':
 
@@ -917,26 +925,31 @@ def decision_table(click_data, faculty):
             ])
             return ag_table
     else:
-        new_df = df[df["decision"] == decisions[0]]
-        ag_table = html.Div([
-            dmc.Text(f"{decisions[0]}", weight=500),
-            dag.AgGrid(
-                id="ag_tbl",
-                rowData=new_df.to_dict("records"),
-                columnDefs=[
-                    {'field': 'regnum'},
-                    {'field': 'firstnames'},
-                    {'field': 'surname'},
-                    {'field': 'programmecode'}
-                ],
-                columnSize="sizeToFit",
-                defaultColDef={"filter": True},
-                dashGridOptions={
-                    "rowSelection": "single", "animateRows": False},
-            )
+        if len(decisions) > 0:
+            new_df = df[df["decision"] == decisions[0]]
+            ag_table = html.Div([
+                dmc.Text(f"{decisions[0]}", weight=500),
+                dag.AgGrid(
+                    id="ag_tbl",
+                    rowData=new_df.to_dict("records"),
+                    columnDefs=[
+                        {'field': 'regnum'},
+                        {'field': 'firstnames'},
+                        {'field': 'surname'},
+                        {'field': 'programmecode'}
+                    ],
+                    columnSize="sizeToFit",
+                    defaultColDef={"filter": True},
+                    dashGridOptions={
+                        "rowSelection": "single", "animateRows": False},
+                )
 
-        ])
-        return ag_table
+            ])
+            return ag_table
+        return dmc.Alert(
+            "Something happened! You made a mistake and there is no going back, your data was lost forever!",
+            title="No data to display",
+        )
 
 # Output programme decision selected rows
 
@@ -1117,7 +1130,7 @@ def output_selected_rows(n_clicks, selected_rows, opened):
     children = []
     if ctx.triggered[0]['prop_id'] == "ag_tbl.selectedRows":
         if selected_rows:
-            print(" The row is selected")
+
             regnum = selected_rows[0]["regnum"]
             student_info = data[data['regnum'] == regnum]
             info = html.Div([

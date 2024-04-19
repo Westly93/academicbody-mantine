@@ -33,7 +33,32 @@ app.layout = html.Div(
             id="row-selection-modal",
         ),
     ]
-)
+)import pandas as pd
+
+# Assuming you have a DataFrame named "df" with a column named "mark"
+df = pd.DataFrame({'mark': [85, 70, 60, 45, 92]})
+
+# Create a function to map marks to grades
+
+
+def get_grade(mark):
+    if mark >= 90:
+        return 'A'
+    elif mark >= 80:
+        return 'B'
+    elif mark >= 70:
+        return 'C'
+    elif mark >= 60:
+        return 'D'
+    else:
+        return 'F'
+
+
+# Apply the function to create the "grade" column
+df['grade'] = df['mark'].apply(get_grade)
+
+# Print the DataFrame
+print(df)
 
 
 @callback(

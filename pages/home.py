@@ -641,7 +641,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Part {academicyear}.{semester}' for semester in data_grouped.semester],
+                                f'Level {academicyear}.{semester}' for semester in data_grouped.semester],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
                             textinfo="label+value",
@@ -689,7 +689,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Part {academicyear}' for academicyear in data_grouped.academicyear],
+                                f'Level {academicyear}' for academicyear in data_grouped.academicyear],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
                             textinfo="label+value",
@@ -736,7 +736,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
             'data': [
                 go.Pie(
                     labels=[
-                        f'Part {academicyear}' for academicyear in data_grouped.academicyear],
+                        f'Level {academicyear}' for academicyear in data_grouped.academicyear],
                     values=data_grouped["Students"],
                     hoverinfo="label+value+percent",
                     textinfo="label+value",
@@ -892,8 +892,7 @@ def decision_table(click_data, faculty):
                         columnDefs=[
                             {'field': 'regnum'},
                             {'field': 'firstnames'},
-                            {'field': 'surname'},
-                            {'field': 'programmecode'}
+                            {'field': 'surname'}
                         ],
                         columnSize="sizeToFit",
                         defaultColDef={"filter": True},
@@ -913,8 +912,7 @@ def decision_table(click_data, faculty):
                     columnDefs=[
                         {'field': 'regnum'},
                         {'field': 'firstnames'},
-                        {'field': 'surname'},
-                        {'field': 'programmecode'}
+                        {'field': 'surname'}
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},

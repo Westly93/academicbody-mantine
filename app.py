@@ -84,7 +84,7 @@ navbar = dbc.Navbar(
                     [
                         dbc.Col(html.Img(src=MSU_LOGO, height="30px")),
                         dbc.Col(dbc.NavbarBrand(
-                            "AcademicBody", className="ms-2")),
+                            "AcademicBoard", className="ms-2")),
                     ],
                     align="center",
                     className="g-0",
@@ -152,7 +152,7 @@ app.layout = dmc.MantineProvider(
     withNormalizeCSS=True,
     children=[
         navbar,
-        dmc.Title(f"Academic Body Results Presentation",
+        dmc.Title(f"Academic Board Results Presentation",
                   order=2, style={"marginBottom": "20px", "marginTop": "60px", "display": "flex", "justifyContent": "center", "alignItems": "center"}),
         html.Div([
             dcc.Location(id="url"),
@@ -167,7 +167,7 @@ app.layout = dmc.MantineProvider(
             children=[
                 dmc.Grid(
                     children=[
-                        dmc.Col(dmc.Text("AcademicBody", weight=500,
+                        dmc.Col(dmc.Text("AcademicBoard", weight=500,
                                 color="white"), span="auto"),
                         dmc.Col([
                             dmc.Group(

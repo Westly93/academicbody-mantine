@@ -10,7 +10,7 @@ import dash_ag_grid as dag
 from flask_login import current_user
 
 
-dash.register_page(__name__, path='/graduants')
+dash.register_page(__name__, path='/graduands')
 
 
 def load_dataframe():
@@ -24,6 +24,14 @@ def load_dataframe():
 
 
 data = load_dataframe()
+faculties = data.faculty.unique().tolist()
+faculty_selection = dmc.Select(
+    label="Select Faculty",
+    id="faculty_select",
+    searchable=True,
+    placeholder="Select Faculty",
+    data=faculties,
+)
 
 
 def go_chart():
@@ -183,6 +191,22 @@ def layout(**kwargs):
             style={"width": "400px", "margin": "20px auto", "padding": "20px"}
         )
     layout = html.Div([
+        faculty_selection,
+        dmc.Grid(
+            children=[
+                dmc.Col(
+                    id="total_programmes",
+                    span="auto"),
+                dmc.Col(
+                    id="total_modules",
+                    span="auto"),
+                dmc.Col(
+                    id="total_graduands",
+                    span="auto"),
+            ],
+            gutter="xl",
+            style={"marginBottom": "20px", "marginTop": "20px"}
+        ),
         dmc.Grid(
             children=[
 
@@ -247,14 +271,91 @@ def layout(**kwargs):
     ], style={"width": "90%", "margin": "20px auto"})
     return layout
 # callbacks
+# update total students
+
+
+@callback(
+    Output("total_graduands", "children"),
+    Input("faculty_select", "value")
+)
+def update_total_programmes(faculty):
+    df = data[data['faculty'] == faculty] if faculty else data
+    return dmc.Paper(
+
+        children=[
+            dmc.Text(f"Total Graduands", weight=500),
+            dmc.Text(f"{df.regnum.nunique()} Graduands", size="xs")
+        ],
+        shadow="xs",
+        style={
+            "padding": "10px"
+        }
+    )
+# faculty selection callback
+
+
+@callback(
+    Output("gender_distribution", "figure"),
+    Input("faculty_select", "value")
+)
+def update_geander_distribution(faculty):
+    data_grouped = data[data['faculty'] == faculty].groupby(by="gender")[
+        'regnum'].nunique() if faculty else data.groupby(by="gender")[
+        'regnum'].nunique()
+    data_grouped = data_grouped.reset_index(
+        name="Students")
+    return {
+        'data': [
+            go.Pie(
+                labels=data_grouped.gender,
+                values=data_grouped["Students"],
+                hoverinfo="label+value+percent",
+                textinfo="label+value",
+                textfont=dict(size=12),
+                hole=.7,
+                rotation=45
+            )
+        ],
+        "layout": go.Layout(
+            hovermode='closest',
+            title={
+                "text": "Gender Distribution ",
+                "y": 0.93,
+                "x": 0.5,
+                "xanchor": 'center',
+                "yanchor": 'top',
+
+            },
+            titlefont={
+                "color": "black",
+                "size": 16
+            },
+            legend={
+                "orientation": 'h',
+                "xanchor": 'left',
+                "x": 0.5,
+                "y": -100
+            },
+            font=dict(
+                family="sans-serif",
+                size=12,
+                color='black'
+            ),
+            width=350,
+            height=350
+        )
+    }
+
+
 # programmetype table
 
 
 @callback(
     Output('programmetype-table', "children"),
     Input('programmetype_distribution', "clickData"),
+    Input('faculty_select', 'value')
 )
-def programmetype_table(click_data):
+def programmetype_table(click_data, faculty):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     programmetypes = data['programmetype'].unique().tolist()
@@ -266,7 +367,8 @@ def programmetype_table(click_data):
             # print(academicyear.split('.'))
             if programmetype in programmetypes:
 
-                new_df = data[data['programmetype'] == programmetype].drop_duplicates(
+                new_df = data[(data['faculty'] == faculty) & (data['programmetype'] == programmetype)].drop_duplicates(
+                    ['regnum'], keep='last') if faculty else data[data['programmetype'] == programmetype].drop_duplicates(
                     ['regnum'], keep='last')
                 # print("You clicked", new_df)
                 ag_table = html.Div([dmc.Text(f"{programmetype}", weight=500),
@@ -287,8 +389,9 @@ def programmetype_table(click_data):
                 return ag_table
 
         else:
-            new_df = data[data["programmetype"] == programmetypes[0]
-                          ].drop_duplicates(['regnum'], keep='last')
+            new_df = data[(data['faculty'] == faculty) & (data["programmetype"] == programmetypes[0])
+                          ].drop_duplicates(['regnum'], keep='last') if faculty else data[data["programmetype"] == programmetypes[0]
+                                                                                          ].drop_duplicates(['regnum'], keep='last')
             ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
                                 dag.AgGrid(
                 id="programmetype_table",
@@ -306,8 +409,9 @@ def programmetype_table(click_data):
             )]),
             return ag_table
     else:
-        new_df = data[data["programmetype"] == programmetypes[0]
-                      ].drop_duplicates(['regnum'], keep='last')
+        new_df = data[(data['faculty'] == faculty) & (data["programmetype"] == programmetypes[0])
+                      ].drop_duplicates(['regnum'], keep='last') if faculty else data[data["programmetype"] == programmetypes[0]
+                                                                                      ].drop_duplicates(['regnum'], keep='last')
         ag_table = html.Div([dmc.Text(f"{programmetypes[0]}", weight=500),
                             dag.AgGrid(
             id="programmetype_table",
@@ -487,10 +591,11 @@ def faculty_distribution(click_data, n_clicks):
 @callback(
     Output('programmetype_distribution', "figure"),
     Output('back-btn', "style"),
-    Input('programmetype_distribution', "clickData"),
-    Input('back-btn', 'n_clicks'),
+    [Input('programmetype_distribution', "clickData"),
+     Input('back-btn', 'n_clicks'),
+     Input("faculty_select", "value")]
 )
-def grade_distribution(click_data, n_clicks):
+def grade_distribution(click_data, n_clicks, faculty):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
@@ -502,9 +607,10 @@ def grade_distribution(click_data, n_clicks):
             # print(academicyear.split('.'))
             if programmetype in data['programmetype'].unique().tolist():
 
-                grouped_data = data[data["programmetype"] == programmetype].groupby(by="grade")[
-                    'regnum'].nunique()
-                grouped_data = grouped_data.reset_index(
+                grouped_data = data[(data["faculty"] == faculty) & (data["programmetype"] == programmetype)].groupby(by="grade")[
+                    'regnum'].nunique().reset_index(
+                    name="Students") if faculty else data[data["programmetype"] == programmetype].groupby(by="grade")[
+                    'regnum'].nunique().reset_index(
                     name="Students")
                 fig = px.bar(
                     grouped_data,
@@ -527,5 +633,51 @@ def grade_distribution(click_data, n_clicks):
 
                 return programmetype_chart(), {"display": "none"}
 
+    elif faculty:
+        data_grouped = data[data["faculty"] == faculty].groupby(by="programmetype")[
+            'regnum'].nunique()
+        data_grouped = data_grouped.reset_index(
+            name="Students")
+        return {
+            'data': [
+                go.Pie(
+                    labels=data_grouped.programmetype,
+                    values=data_grouped["Students"],
+                    hoverinfo="label+value+percent",
+                    textinfo="label+value",
+                    textfont=dict(size=12),
+                    hole=.7,
+                    rotation=45
+                )
+            ],
+            "layout": go.Layout(
+                hovermode='closest',
+                title={
+                    "text": "Programmetype Distribution ",
+                    "y": 0.93,
+                    "x": 0.5,
+                    "xanchor": 'center',
+                    "yanchor": 'top',
+
+                },
+                titlefont={
+                    "color": "black",
+                    "size": 16
+                },
+                legend={
+                    "orientation": 'h',
+                    "xanchor": 'left',
+                    "x": 0.5,
+                    "y": -100
+                },
+                font=dict(
+                    family="sans-serif",
+                    size=12,
+                    color='black'
+                ),
+                width=350,
+                height=350
+            )
+        }, {"display": "none"}
     else:
         return programmetype_chart(), {"display": "none"}

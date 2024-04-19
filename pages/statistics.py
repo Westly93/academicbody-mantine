@@ -376,7 +376,7 @@ def academicyear_drilldown(click_data, n_clicks):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Part {academicyear}.{semester}' for semester in data_grouped.semester],
+                                f'Level {academicyear}.{semester}' for semester in data_grouped.semester],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
                             textinfo="label+value",
@@ -424,7 +424,7 @@ def academicyear_drilldown(click_data, n_clicks):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Part {academicyear}' for academicyear in data_grouped.academicyear],
+                                f'Level {academicyear}' for academicyear in data_grouped.academicyear],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
                             textinfo="label+value",
@@ -470,7 +470,7 @@ def academicyear_drilldown(click_data, n_clicks):
             'data': [
                 go.Pie(
                     labels=[
-                        f'Part {academicyear}' for academicyear in data_grouped.academicyear],
+                        f'Level {academicyear}' for academicyear in data_grouped.academicyear],
                     values=data_grouped["Students"],
                     hoverinfo="label+value+percent",
                     textinfo="label+value",

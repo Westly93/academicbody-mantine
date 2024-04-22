@@ -19,7 +19,7 @@ def load_dataframe():
     data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
-    data = data[data['decision'] == "PASS"]
+    data = data[data['decision'] == 'PASS CLASS']
     return data
 
 
@@ -474,13 +474,9 @@ def programmetype_selected_rows(n_clicks, selected_rows, opened):
                 ),
                 dmc.Grid(
                     children=[
-                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(dmc.Text("Faculty"), span=6),
                         dmc.Col(
-                            dmc.Highlight(
-                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
-                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
-                            ), span=6
-                        )
+                            dmc.Text(f"{student_info['faculty'].iloc[0]}"), span=6),
                     ],
                     gutter="xl",
                 ),
@@ -492,6 +488,28 @@ def programmetype_selected_rows(n_clicks, selected_rows, opened):
                     ],
                     gutter="xl",
                 ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(
+                            dmc.Highlight(
+                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
+                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
+                            ), span=6
+                        )
+                    ],
+                    gutter="xl",
+                ),
+
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Overall Grade"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['decisionextras'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                html.Br(),
                 dmc.Text("Modules", weight=500),
                 dag.AgGrid(
                     id="row-selection-popup-popup",
@@ -607,18 +625,18 @@ def grade_distribution(click_data, n_clicks, faculty):
             # print(academicyear.split('.'))
             if programmetype in data['programmetype'].unique().tolist():
 
-                grouped_data = data[(data["faculty"] == faculty) & (data["programmetype"] == programmetype)].groupby(by="grade")[
+                grouped_data = data[(data["faculty"] == faculty) & (data["programmetype"] == programmetype)].groupby(by="decisionextras")[
                     'regnum'].nunique().reset_index(
-                    name="Students") if faculty else data[data["programmetype"] == programmetype].groupby(by="grade")[
+                    name="Students") if faculty else data[data["programmetype"] == programmetype].groupby(by="decisionextras")[
                     'regnum'].nunique().reset_index(
                     name="Students")
                 fig = px.bar(
                     grouped_data,
-                    x="grade",
+                    x="decisionextras",
                     y="Students",
                     # orientation='h',
                     title=f"Grade Distribution: {programmetype}",
-                    color="grade",
+                    color="decisionextras",
                     template="plotly_white"
 
                 )

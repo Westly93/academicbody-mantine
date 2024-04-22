@@ -42,6 +42,21 @@ layout = html.Form(
                             "Login", n_clicks=0,
                             type="submit", id="login-button", variant="outline", fullWidth=True
                         ),
+                        html.Div(
+                            [
+                                dmc.Text("Don't Have an account? ", size="md"),
+                                dmc.Anchor(
+                                    "Create Account",
+                                    href="/signup",
+                                    style={
+                                        "marginLeft": "5px"
+                                    }
+                                )
+                            ],
+                            style={
+                                "display": "flex",
+                            }
+                        )
 
                     ],
                 )

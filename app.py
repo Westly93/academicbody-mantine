@@ -1,7 +1,9 @@
 import dash
 from datetime import datetime
+from os import path
 import pandas as pd
 # import dash_auth
+from werkzeug.security import generate_password_hash, check_password_hash
 from dash import html, State, dcc, ALL
 import dash_mantine_components as dmc
 from dash_iconify import DashIconify
@@ -11,6 +13,8 @@ from flask import Flask, request, redirect, session
 from flask_login import login_user, LoginManager, UserMixin, logout_user, current_user
 from dash.exceptions import PreventUpdate
 from utils.login_handler import restricted_page
+from flaskapp.models import User, db
+from flaskapp.config import Config
 
 current_year = datetime.now().year
 
@@ -21,7 +25,30 @@ def get_icon(icon):
 
 MSU_LOGO = "/assets/images/msu-logo.png"
 # Exposing the Flask Server to enable configuring it for logging in
-server = Flask(__name__)
+
+
+def create_server(config_class=Config):
+    server = Flask(__name__)
+    # Updating the Flask Server configuration with Secret Key to encrypt the user session cookie
+    server.config.from_object(Config)
+    db.init_app(server)
+    # server.config.update(SECRET_KEY="testing321#")
+
+    # Login manager object will be used to login / logout users
+    login_manager = LoginManager()
+    login_manager.init_app(server)
+    login_manager.login_view = "/login"
+    with server.app_context():
+        db.create_all()
+
+    @login_manager.user_loader
+    def load_user(id):
+        return User.query.get(int(id))
+
+    return server
+
+
+server = create_server()
 
 app = dash.Dash(
     __name__,
@@ -60,21 +87,38 @@ def login_button_click():
     if request.form:
         username = request.form['username']
         password = request.form['password']
-        if VALID_USERNAME_PASSWORD.get(username) is None:
-            return """invalid username and/or password <a href='/login'>login here</a>"""
-        if VALID_USERNAME_PASSWORD.get(username) == password:
-            login_user(User(username))
-            if 'url' in session:
-                if session['url']:
-                    url = session['url']
-                    session['url'] = None
-                    return redirect(url)  # redirect to target url
+        user = User.query.filter_by(email=username).first()
+
+        if user and check_password_hash(user.password, password):
+            login_user(user)  # redirect to target url
             return redirect('/')  # redirect to home
         return """invalid username and/or password <a href='/login'>login here</a>"""
 
 
+@server.route('/signup', methods=['POST'])
+def signup_button_click():
+    if request.form:
+        email = request.form['email']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        if email and password and confirm_password:
+            user = User.query.filter_by(email=email).first()
+            if user:
+                return """Please this email is taken <a href='/signup'>Signup here</a>"""
+            if password != confirm_password:
+                return """Please Passwords do not match <a href='/signup'>Signup here</a>"""
+            password = generate_password_hash(password, method='pbkdf2:sha256')
+            user = User(
+                email=email, password=password
+            )
+            db.session.add(user)
+            db.session.commit()
+            return redirect('/login')  # redirect to home
+        return """Please Fill in the required fields <a href='/signup'>Signup here</a>"""
+
+
 guest_links = [page for page in dash.page_registry.values()
-               if page['path'] != "/login"]
+               if page['path'] not in ["/login", '/signup', '/logout']]
 navbar = dbc.Navbar(
     dbc.Container(
         [
@@ -113,28 +157,10 @@ navbar = dbc.Navbar(
 VALID_USERNAME_PASSWORD = {"test": "test", "hello": "world"}
 
 
-# Updating the Flask Server configuration with Secret Key to encrypt the user session cookie
-server.config.update(SECRET_KEY="testing321#")
-
-# Login manager object will be used to login / logout users
-login_manager = LoginManager()
-login_manager.init_app(server)
-login_manager.login_view = "/login"
-
-
-class User(UserMixin):
-    # User data model. It has to have at least self.id as a minimum
-    def __init__(self, username):
-        self.id = username
-
-
-@login_manager.user_loader
-def load_user(username):
-    """This function loads the user by user id. Typically this looks up the user from a user database.
-    We won't be registering or looking up users in this example, since we'll just login using LDAP server.
-    So we'll simply return a User object with the passed in username.
-    """
-    return User(username)
+def create_database(server):
+    if not path.exists('database.db'):
+        db.create_all(app=server)
+        print('Created Database!')
 
 
 app.layout = dmc.MantineProvider(
@@ -160,12 +186,22 @@ app.layout = dmc.MantineProvider(
             dash.page_container
         ], style={'marginTop': "40px"}),
         html.Br(),
-        html.Hr(),
         dmc.Footer(
             height=60,
             fixed=True,
             children=[
-                dmc.Grid(
+                dmc.Breadcrumbs(
+                    separator="→",
+                    children=[
+                        html.P(id="faculty-output",
+                               style={"marginTop": "20px"}),
+                        html.P(id="programme-output",
+                               style={"marginTop": "20px"})
+                    ],
+                    style={"color": "white", "display": "flex",
+                           "justifyContent": "center", "alignItems": "center"}
+                ),
+                """ dmc.Grid(
                     children=[
                         dmc.Col(dmc.Text("AcademicBoard", weight=500,
                                 color="white"), span="auto"),
@@ -192,7 +228,7 @@ app.layout = dmc.MantineProvider(
                     ],
                     gutter="xl",
                     style={"width": "80%", "margin": "10px auto"}
-                ),
+                ), """
 
             ],
             style={"backgroundColor": "#343a40", "marginTop": "120px"},
@@ -201,6 +237,36 @@ app.layout = dmc.MantineProvider(
     ],
 )
 # Calbacks
+
+
+@app.callback(
+    Output("faculty-output", 'children'),
+    Input("faculty_selection", "value")
+)
+def update_faculty_output(faculty):
+    return dmc.Text(
+
+        f"{faculty}",
+
+        variant="gradient",
+        gradient={"from": "red",
+                  "to": "yellow", "deg": 45},
+    ),
+
+
+@app.callback(
+    Output("programme-output", 'children'),
+    Input("programme_selection", "value")
+)
+def update_programme_output(programme):
+    return dmc.Text(
+
+        f"{programme}",
+
+        variant="gradient",
+        gradient={"from": "red",
+                  "to": "yellow", "deg": 45},
+    ),
 # login callbacks
 
 
@@ -238,7 +304,7 @@ def update_authentication_status(path, n):
             ),
             return nav, '/'
         guest_links = [page for page in dash.page_registry.values()
-                       if page['path'] != "/login"]
+                       if page['path'] not in ["/login", "/signup", "/logout"]]
         nav = dbc.Nav(
             [
                 dbc.NavLink(
@@ -259,7 +325,7 @@ def update_authentication_status(path, n):
         if path in restricted_page:
             session['url'] = path
             guest_links = [page for page in dash.page_registry.values()
-                           if page['path'] == "/login"]
+                           if page['path'] in ["/login", "/signup"]]
             nav = dbc.Nav(
                 [
                     dbc.NavLink(

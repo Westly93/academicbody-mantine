@@ -810,7 +810,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                         {'field': 'regnum'},
                         {'field': 'firstnames'},
                         {'field': 'surname'},
-                        {'field': 'programmecode'}
+                        {'field': 'decisionextras'}
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},
@@ -829,7 +829,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                     {'field': 'regnum'},
                     {'field': 'firstnames'},
                     {'field': 'surname'},
-                    {'field': 'programmecode'}
+                   {'field': 'decisionextras'}
                 ],
                 columnSize="sizeToFit",
                 defaultColDef={"filter": True},
@@ -848,7 +848,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                     {'field': 'regnum'},
                     {'field': 'firstnames'},
                     {'field': 'surname'},
-                    {'field': 'programmecode'}
+                    {'field': 'decisionextras'}
                 ],
                 columnSize="sizeToFit",
                 defaultColDef={"filter": True},
@@ -892,7 +892,8 @@ def decision_table(click_data, faculty):
                         columnDefs=[
                             {'field': 'regnum'},
                             {'field': 'firstnames'},
-                            {'field': 'surname'}
+                            {'field': 'surname'},
+                            {'field': 'decisionextras'}
                         ],
                         columnSize="sizeToFit",
                         defaultColDef={"filter": True},
@@ -912,7 +913,8 @@ def decision_table(click_data, faculty):
                     columnDefs=[
                         {'field': 'regnum'},
                         {'field': 'firstnames'},
-                        {'field': 'surname'}
+                        {'field': 'surname'},
+                        {'field': 'decisionextras'}
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},
@@ -934,7 +936,7 @@ def decision_table(click_data, faculty):
                         {'field': 'regnum'},
                         {'field': 'firstnames'},
                         {'field': 'surname'},
-                        {'field': 'programmecode'}
+                        {'field': 'decisionextras'}
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},
@@ -969,6 +971,7 @@ def output_programme_selected_rows(n_clicks, selected_rows, opened):
             print(" The row is selected")
             regnum = selected_rows[0]["regnum"]
             student_info = data[data['regnum'] == regnum]
+
             info = html.Div([
                 dmc.Grid(
                     children=[
@@ -996,13 +999,9 @@ def output_programme_selected_rows(n_clicks, selected_rows, opened):
                 ),
                 dmc.Grid(
                     children=[
-                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(dmc.Text("Faculty"), span=6),
                         dmc.Col(
-                            dmc.Highlight(
-                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
-                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
-                            ), span=6
-                        )
+                            dmc.Text(f"{student_info['faculty'].iloc[0]}"), span=6),
                     ],
                     gutter="xl",
                 ),
@@ -1014,6 +1013,49 @@ def output_programme_selected_rows(n_clicks, selected_rows, opened):
                     ],
                     gutter="xl",
                 ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(
+                            dmc.Highlight(
+                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
+                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
+                            ), span=6
+                        )
+                    ],
+                    gutter="xl",
+                ),
+
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Failed Modules"), span=6),
+                        dmc.Col([
+                            dmc.Text(
+                                f"{student_info['decisionextras'].iloc[0]}")
+                        ], span=6),
+                    ] if student_info['decision'].iloc[0] in ["SUPPLEMENT", "REPEAT", "RETAKE"] else None,
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Repeat Level"), span=6),
+                        dmc.Col([
+                            dmc.Text(
+                                f"{student_info['decisionextras'].iloc[0]}")
+                        ], span=6),
+                    ] if student_info['decision'].iloc[0] == "REPEAT LEVEL" else None,
+                    gutter="xl",
+                ),
+                html.Br(),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Overall Grade"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['decisionextras'].iloc[0]}"), span=6),
+                    ] if student_info['decision'].iloc[0] == "PASS CLASS" else None,
+                    gutter="xl",
+                ),
+                html.Br(),
                 dmc.Text("Modules", weight=500),
                 dag.AgGrid(
                     id="row-selection-popup-popup",
@@ -1158,13 +1200,9 @@ def output_selected_rows(n_clicks, selected_rows, opened):
                 ),
                 dmc.Grid(
                     children=[
-                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(dmc.Text("Faculty"), span=6),
                         dmc.Col(
-                            dmc.Highlight(
-                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
-                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
-                            ), span=6
-                        )
+                            dmc.Text(f"{student_info['faculty'].iloc[0]}"), span=6),
                     ],
                     gutter="xl",
                 ),
@@ -1176,6 +1214,50 @@ def output_selected_rows(n_clicks, selected_rows, opened):
                     ],
                     gutter="xl",
                 ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Decision"), span=6),
+                        dmc.Col(
+                            dmc.Highlight(
+                                f"{student_info['decision'].iloc[0]}", highlight=f"{student_info['decision'].iloc[0]}",
+                                highlightColor="red" if student_info['decision'].iloc[0] == "RETAKE" else "lime"
+                            ), span=6
+                        )
+                    ],
+                    gutter="xl",
+                ),
+
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Failed Modules"), span=6),
+                        dmc.Col([
+                            dmc.Text(
+                                f"{student_info['decisionextras'].iloc[0]}")
+                        ], span=6),
+                    ] if student_info['decision'].iloc[0] in ["SUPPLEMENT", "REPEAT", "RETAKE"] else None,
+                    gutter="xl",
+                ),
+                html.Br(),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Repeat Level"), span=6),
+                        dmc.Col([
+                            dmc.Text(
+                                f"{student_info['decisionextras'].iloc[0]}")
+                        ], span=6),
+                    ] if student_info['decision'].iloc[0] == "REPEAT LEVEL" else None,
+                    gutter="xl",
+                ),
+                html.Br(),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Overall Grade"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{student_info['decisionextras'].iloc[0]}"), span=6),
+                    ] if student_info['decision'].iloc[0] == "PASS CLASS" else None,
+                    gutter="xl",
+                ),
+                html.Br(),
                 dmc.Text("Modules", weight=500),
                 dag.AgGrid(
                     id="row-selection-popup-popup",

@@ -92,6 +92,7 @@ def login_button_click():
         if user and check_password_hash(user.password, password):
             login_user(user)  # redirect to target url
             return redirect('/')  # redirect to home
+
         return """invalid username and/or password <a href='/login'>login here</a>"""
 
 

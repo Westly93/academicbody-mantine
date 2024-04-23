@@ -7,6 +7,7 @@ import dash_mantine_components as dmc
 import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input
 from flask_login import current_user
+from dash_iconify import DashIconify
 
 
 def load_dataframe():
@@ -802,59 +803,183 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
 
                 new_df = df[df['decision'] == decision]
                 # print("You clicked", new_df)
-                ag_table = html.Div([dmc.Text(f"{decision}", weight=500),
-                                    dag.AgGrid(
-                    id="programme_decision_table",
-                    rowData=new_df.to_dict('records'),
-                    columnDefs=[
-                        {'field': 'regnum'},
-                        {'field': 'firstnames'},
-                        {'field': 'surname'},
-                        {'field': 'decisionextras'}
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False},
-                )])
+                ag_table = html.Div([
+                    html.Div([
+                        html.Div([
+                            dmc.Text(f"{decision}", weight=500),
+                            dmc.ActionIcon(
+                                DashIconify(icon="bi:download"),
+                                size="sm",
+                                variant="subtle",
+                                id="csv-button",
+                                n_clicks=0,
+                                mb=10,
+                                style={"marginLeft": "5px"}
+                            ),
+
+                        ], style={"display": "flex"}),
+                        dmc.Switch(
+                            id='cell-editing-switch',
+                            label="Edit Mode",
+                            onLabel="ON",
+                            offLabel="OFF",
+                            checked=False
+                        )
+                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+                    dag.AgGrid(
+                        id="programme_decision_table",
+                        rowData=new_df.to_dict('records'),
+                        columnDefs=[
+                            {
+                                "headerName": "RegNum",
+                                'field': 'regnum'
+                            },
+                            {
+                                "headerName": "First Name",
+                                'field': 'firstnames'
+                            },
+                            {
+                                "headerName": "Surname",
+                                'field': 'surname'
+                            },
+                            {
+                                "headerName": "Decision Extras",
+                                'field': 'decisionextras',
+                                "cellEditorPopup": True,
+                                "cellEditorPopupPosition": "under",
+                            }
+                        ],
+                        columnSize="sizeToFit",
+                        csvExportParams={
+                            "fileName": f"{decision}.csv",
+                        },
+                        defaultColDef={"filter": True},
+                        dashGridOptions={
+                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                    ),
+
+                    html.Div(id="output-1")])
                 return ag_table
 
         else:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([dmc.Text(f"{decisions[0]}", weight=500),
-                                dag.AgGrid(
-                id="programme_decision_table",
-                rowData=new_df.to_dict('records'),
-                columnDefs=[
-                    {'field': 'regnum'},
-                    {'field': 'firstnames'},
-                    {'field': 'surname'},
-                   {'field': 'decisionextras'}
-                ],
-                columnSize="sizeToFit",
-                defaultColDef={"filter": True},
-                dashGridOptions={
-                    "rowSelection": "single", "animateRows": False},
-            )]),
+            ag_table = html.Div([
+                html.Div([
+                    html.Div([
+                        dmc.Text(f"{decisions[0]}", weight=500),
+                        dmc.ActionIcon(
+                            DashIconify(icon="bi:download"),
+                            size="sm",
+                            variant="subtle",
+                            id="csv-button",
+                            n_clicks=0,
+                            mb=10,
+                            style={"marginLeft": "5px"}
+                        ),
+
+                    ], style={"display": "flex"}),
+                    dmc.Switch(
+                        id='cell-editing-switch',
+                        label="Edit Mode",
+                        onLabel="ON",
+                        offLabel="OFF",
+                        checked=False
+                    )
+                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+                dag.AgGrid(
+                    id="programme_decision_table",
+                    rowData=new_df.to_dict('records'),
+                    columnDefs=[
+                        {
+                            "headerName": "RegNum",
+                            'field': 'regnum'
+                        },
+                        {
+                            "headerName": "First Name",
+                            'field': 'firstnames'
+                        },
+                        {
+                            "headerName": "Surname",
+                            'field': 'surname'
+                        },
+                        {
+                            "headerName": "Decision Extras",
+                            'field': 'decisionextras',
+                            "cellEditorPopup": True,
+                            "cellEditorPopupPosition": "under",
+                        }
+                    ],
+                    columnSize="sizeToFit",
+                    defaultColDef={"filter": True},
+                    csvExportParams={
+                        "fileName": f"{decisions[0]}.csv",
+                    },
+                    dashGridOptions={
+                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                ),
+
+                html.Div(id="output-1")]),
             return ag_table
     else:
         if len(decisions) > 0:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([dmc.Text(f"{decisions[0]}", weight=500),
-                                dag.AgGrid(
-                id="programme_decision_table",
-                rowData=new_df.to_dict('records'),
-                columnDefs=[
-                    {'field': 'regnum'},
-                    {'field': 'firstnames'},
-                    {'field': 'surname'},
-                    {'field': 'decisionextras'}
-                ],
-                columnSize="sizeToFit",
-                defaultColDef={"filter": True},
-                dashGridOptions={
-                    "rowSelection": "single", "animateRows": False},
-            )])
+            ag_table = html.Div([
+                html.Div([
+                    html.Div([
+                        dmc.Text(f"{decisions[0]}", weight=500),
+                        dmc.ActionIcon(
+                            DashIconify(icon="bi:download"),
+                            size="sm",
+                            variant="subtle",
+                            id="csv-button",
+                            n_clicks=0,
+                            mb=10,
+                            style={"marginLeft": "5px"}
+                        ),
+
+                    ], style={"display": "flex"}),
+                    dmc.Switch(
+                        id='cell-editing-switch',
+                        label="Edit Mode",
+                        onLabel="ON",
+                        offLabel="OFF",
+                        checked=False
+                    )
+                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+
+                dag.AgGrid(
+                    id="programme_decision_table",
+                    rowData=new_df.to_dict('records'),
+                    columnDefs=[
+                        {
+                            "headerName": "RegNum",
+                            'field': 'regnum'
+                        },
+                        {
+                            "headerName": "First Name",
+                            'field': 'firstnames'
+                        },
+                        {
+                            "headerName": "Surname",
+                            'field': 'surname'
+                        },
+                        {
+                            "headerName": "Decision Extras",
+                            'field': 'decisionextras',
+                            "cellEditorPopup": True,
+                            "cellEditorPopupPosition": "under",
+                        }
+                    ],
+                    columnSize="sizeToFit",
+                    defaultColDef={"filter": True},
+                    csvExportParams={
+                        "fileName": f"{decisions[0]}.csv",
+                    },
+                    dashGridOptions={
+                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                ),
+
+                html.Div(id="output-1")])
             return ag_table
         else:
             return dmc.Alert(
@@ -862,6 +987,50 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                 title="No data to display",
             )
 
+# Download csv file
+
+
+@callback(
+    Output("programme_decision_table", "exportDataAsCsv"),
+    Input("csv-button", "n_clicks"),
+)
+def export_data_as_csv(n_clicks):
+    if n_clicks:
+        return True
+    return False
+# ag grid edit
+
+
+@callback(
+    Output('programme_decision_table', 'defaultColDef'),
+    Input('cell-editing-switch', 'checked')
+)
+def update_cell_editing_options(checked):
+    if checked:
+        return {"editable": True, "filter": True}
+    else:
+        return {"editable": False, "filter": True}
+
+
+@callback(
+    Output("output-1", "children"), Input(
+        "programme_decision_table", "cellValueChanged")
+)
+def update(cell_changed):
+    if cell_changed:
+        """ student = Student(
+            regnum=cell_changed[0]['data']['regnum'],
+            firstnames=cell_changed[0]['data']['firstnames'],
+            surname=cell_changed[0]['data']['surname'],
+            programmecode=cell_changed[0]['data']['programmecode'],
+            decision=cell_changed[0]['data']['decision'],
+            faculty=cell_changed[0]['data']['faculty'],
+            grade=cell_changed[0]['data']['grade'],
+        )
+        db.session.add(student)
+        db.session.commit() """
+        return dmc.Alert(f"Database updated with edited data: {cell_changed[0]['data']['firstnames']}", title="Success!", color="green")
+    return None
 # decisions
 
 
@@ -885,42 +1054,120 @@ def decision_table(click_data, faculty):
             if decision in decisions:
                 new_df = df[df['decision'] == decision]
                 ag_table = html.Div([
-                    dmc.Text(f"{decision}", weight=500),
+                    html.Div([
+                        html.Div([
+                            dmc.Text(f"{decision}", weight=500),
+                            dmc.ActionIcon(
+                                DashIconify(icon="bi:download"),
+                                size="sm",
+                                variant="subtle",
+                                id="csv-btn",
+                                n_clicks=0,
+                                mb=10,
+                                style={"marginLeft": "5px"}
+                            ),
+
+                        ], style={"display": "flex"}),
+                        dmc.Switch(
+                            id='cell-editing',
+                            label="Edit Mode",
+                            onLabel="ON",
+                            offLabel="OFF",
+                            checked=False
+                        )
+                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
                     dag.AgGrid(
                         id="ag_tbl",
                         rowData=new_df.to_dict("records"),
                         columnDefs=[
-                            {'field': 'regnum'},
-                            {'field': 'firstnames'},
-                            {'field': 'surname'},
-                            {'field': 'decisionextras'}
+                            {
+                                "headerName": "RegNum",
+                                'field': 'regnum'
+                            },
+                            {
+                                "headerName": "First Name",
+                                'field': 'firstnames'
+                            },
+                            {
+                                "headerName": "Surname",
+                                'field': 'surname'
+                            },
+                            {
+                                "headerName": "Decision Extras",
+                                'field': 'decisionextras',
+                                "cellEditorPopup": True,
+
+                                "cellEditorPopupPosition": "under",
+                            }
                         ],
                         columnSize="sizeToFit",
                         defaultColDef={"filter": True},
+                        csvExportParams={
+                            "fileName": f"{decision}.csv",
+                        },
                         dashGridOptions={
-                            "rowSelection": "single", "animateRows": False},
-                    )
+                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                    ), html.Div(id="output")
                 ])
                 return ag_table
 
         else:
             new_df = df[df["decision"] == decisions[0]]
             ag_table = html.Div([
-                dmc.Text(f"{decisions[0]}", weight=500),
+                html.Div([
+                    html.Div([
+                        dmc.Text(f"{decisions[0]}", weight=500),
+                        dmc.ActionIcon(
+                            DashIconify(icon="bi:download"),
+                            size="sm",
+                            variant="subtle",
+                            id="csv-button",
+                            n_clicks=0,
+                            mb=10,
+                            style={"marginLeft": "5px"}
+                        ),
+
+                    ], style={"display": "flex"}),
+                    dmc.Switch(
+                        id='cell-editing',
+                        label="Edit Mode",
+                        onLabel="ON",
+                        offLabel="OFF",
+                        checked=False
+                    )
+                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+
                 dag.AgGrid(
                     id="ag_tbl",
                     rowData=new_df.to_dict("records"),
                     columnDefs=[
-                        {'field': 'regnum'},
-                        {'field': 'firstnames'},
-                        {'field': 'surname'},
-                        {'field': 'decisionextras'}
+                        {
+                            "headerName": "RegNum",
+                            'field': 'regnum'
+                        },
+                        {
+                            "headerName": "First Name",
+                            'field': 'firstnames'
+                        },
+                        {
+                            "headerName": "Surname",
+                            'field': 'surname'
+                        },
+                        {
+                            "headerName": "Decision Extras",
+                            'field': 'decisionextras',
+                            "cellEditorPopup": True,
+                            "cellEditorPopupPosition": "under",
+                        }
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},
+                    csvExportParams={
+                        "fileName": f"{decisions[0]}.csv",
+                    },
                     dashGridOptions={
-                        "rowSelection": "single", "animateRows": False},
-                )
+                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                ), html.Div(id="output")
 
             ])
             return ag_table
@@ -928,21 +1175,61 @@ def decision_table(click_data, faculty):
         if len(decisions) > 0:
             new_df = df[df["decision"] == decisions[0]]
             ag_table = html.Div([
-                dmc.Text(f"{decisions[0]}", weight=500),
+                html.Div([
+                    html.Div([
+                        dmc.Text(f"{decisions[0]}", weight=500),
+                        dmc.ActionIcon(
+                            DashIconify(icon="bi:download"),
+                            size="sm",
+                            variant="subtle",
+                            id="csv-button",
+                            n_clicks=0,
+                            mb=10,
+                            style={"marginLeft": "5px"}
+                        ),
+
+                    ], style={"display": "flex"}),
+                    dmc.Switch(
+                        id='cell-editing',
+                        label="Edit Mode",
+                        onLabel="ON",
+                        offLabel="OFF",
+                        checked=False
+                    )
+                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+
                 dag.AgGrid(
                     id="ag_tbl",
                     rowData=new_df.to_dict("records"),
                     columnDefs=[
-                        {'field': 'regnum'},
-                        {'field': 'firstnames'},
-                        {'field': 'surname'},
-                        {'field': 'decisionextras'}
+                        {
+                            "headerName": "RegNum",
+                            'field': 'regnum'
+                        },
+                        {
+                            "headerName": "First Name",
+                            'field': 'firstnames'
+                        },
+                        {
+                            "headerName": "Surname",
+                            'field': 'surname'
+                        },
+                        {
+                            "headerName": "Decision Extras",
+                            'field': 'decisionextras',
+
+                            "cellEditorPopup": True,
+                            "cellEditorPopupPosition": "under",
+                        }
                     ],
                     columnSize="sizeToFit",
                     defaultColDef={"filter": True},
+                    csvExportParams={
+                        "fileName": f"{decisions[0]}.csv",
+                    },
                     dashGridOptions={
-                        "rowSelection": "single", "animateRows": False},
-                )
+                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                ), html.Div(id="output")
 
             ])
             return ag_table
@@ -950,6 +1237,50 @@ def decision_table(click_data, faculty):
             "Something happened! You made a mistake and there is no going back, your data was lost forever!",
             title="No data to display",
         )
+# download csv
+
+
+@callback(
+    Output("ag_tbl", "exportDataAsCsv"),
+    Input("csv-btn", "n_clicks"),
+)
+def export_data(n_clicks):
+    if n_clicks:
+        return True
+    return False
+# edit ag grid
+
+
+@callback(
+    Output('ag_tbl', 'defaultColDef'),
+    Input('cell-editing', 'checked')
+)
+def update_cell_editing_options(checked):
+    if checked:
+        return {"editable": True, "filter": True}
+    else:
+        return {"editable": False, "filter": True}
+
+
+@callback(
+    Output("output", "children"), Input(
+        "ag_tbl", "cellValueChanged")
+)
+def update_cell(cell_changed):
+    if cell_changed:
+        """ student = Student(
+            regnum=cell_changed[0]['data']['regnum'],
+            firstnames=cell_changed[0]['data']['firstnames'],
+            surname=cell_changed[0]['data']['surname'],
+            programmecode=cell_changed[0]['data']['programmecode'],
+            decision=cell_changed[0]['data']['decision'],
+            faculty=cell_changed[0]['data']['faculty'],
+            grade=cell_changed[0]['data']['grade'],
+        )
+        db.session.add(student)
+        db.session.commit() """
+        return dmc.Alert(f"Database updated with edited data: {cell_changed[0]['data']['firstnames']}", title="Success!", color="green")
+    return None
 
 # Output programme decision selected rows
 

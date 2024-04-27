@@ -14,12 +14,12 @@ dash.register_page(__name__, path='/graduands')
 
 
 def load_dataframe():
-    data = pd.read_csv("./data/new_data.csv")
+    data = pd.read_csv("./data/period216.csv")
     # data = data.drop(columns=['id'])
     data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
-    data = data[data['decision'] == 'PASS CLASS']
+    # data = data[data['decision'] == 'PASS CLASS']
     return data
 
 
@@ -190,85 +190,94 @@ def layout(**kwargs):
             shadow="xs",
             style={"width": "400px", "margin": "20px auto", "padding": "20px"}
         )
-    layout = html.Div([
-        faculty_selection,
-        dmc.Grid(
-            children=[
-                dmc.Col(
-                    id="total_programmes",
-                    span="auto"),
-                dmc.Col(
-                    id="total_modules",
-                    span="auto"),
-                dmc.Col(
-                    id="total_graduands",
-                    span="auto"),
-            ],
-            gutter="xl",
-            style={"marginBottom": "20px", "marginTop": "20px"}
-        ),
-        dmc.Grid(
-            children=[
+    else:
+        if 'decision' in data.columns:
+            layout = html.Div([
+                faculty_selection,
+                dmc.Grid(
+                    children=[
+                        dmc.Col(
+                            id="total_programmes",
+                            span="auto"),
+                        dmc.Col(
+                            id="total_modules",
+                            span="auto"),
+                        dmc.Col(
+                            id="total_graduands",
+                            span="auto"),
+                    ],
+                    gutter="xl",
+                    style={"marginBottom": "20px", "marginTop": "20px"}
+                ),
+                dmc.Grid(
+                    children=[
 
-                dmc.Col([
-                    dmc.Paper(
+                        dmc.Col([
+                            dmc.Paper(
+                                children=[
+                                    dmc.Button("🡠", id='back-btn', variant="subtle",
+                                               style={'display': 'none'}),
+                                    dcc.Graph(id="programmetype_distribution",
+                                              config={"displayModeBar": "hover"}),
+                                ],
+                                shadow="xs",
+                            )
+
+                        ], span="auto"),
+                        dmc.Col([
+                            dmc.Paper(
+                                children=[dcc.Graph(id="gender_distribution",
+                                                    config={
+                                                        "displayModeBar": "hover"},
+                                                    figure=gender_chart())],
+                                shadow="xs",
+                            )
+
+                        ], span="auto"),
+                        dmc.Col([
+                            dmc.Paper(
+                                children=[
+                                    dmc.Button("🡠", id='back-bttn', variant="subtle",
+                                               style={'display': 'none'}),
+                                    dcc.Graph(id="faculty_distribution",
+                                              config={"displayModeBar": "hover"}),
+                                ],
+                                shadow="xs",
+                            )
+
+                        ], span="auto"),
+
+                    ], style={"marginTop": "10px", "marginBottom": "20px"}
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col([
+                            dmc.Paper(
+                                id="programmetype-table",
+                                children=[],
+                                shadow="xs",
+                                style={"padding": "10px"}
+                            ),
+                        ], span="auto"),
+                    ],
+                    gutter="xl",
+                ),
+                html.Div(id="programmetype_selected_rows", children=[
+                    dmc.Modal(
+                        title="Student Information",
+                        size="80%",
+                        id="programmetype-modal",
+                        zIndex=10000,
                         children=[
-                            dmc.Button("🡠", id='back-btn', variant="subtle",
-                                       style={'display': 'none'}),
-                            dcc.Graph(id="programmetype_distribution",
-                                      config={"displayModeBar": "hover"}),
-                        ],
-                        shadow="xs",
-                    )
-
-                ], span="auto"),
-                dmc.Col([
-                    dmc.Paper(
-                        children=[dcc.Graph(id="gender_distribution",
-                                            config={"displayModeBar": "hover"},
-                                            figure=gender_chart())],
-                        shadow="xs",
-                    )
-
-                ], span="auto"),
-                dmc.Col([
-                    dmc.Paper(
-                        children=[
-                            dmc.Button("🡠", id='back-bttn', variant="subtle",
-                                       style={'display': 'none'}),
-                            dcc.Graph(id="faculty_distribution",
-                                      config={"displayModeBar": "hover"}),
-                        ],
-                        shadow="xs",
-                    )
-
-                ], span="auto"),
-
-            ], style={"marginTop": "10px", "marginBottom": "20px"}
-        ),
-        dmc.Grid(
-            children=[
-                dmc.Col([
-                    dmc.Paper(
-                        id="programmetype-table",
-                        children=[],
-                        shadow="xs",
-                        style={"padding": "10px"}
+                            dmc.Text("This is a vertically centered modal.")],
                     ),
-                ], span="auto"),
-            ],
-            gutter="xl",
-        ),
-        html.Div(id="programmetype_selected_rows", children=[
-            dmc.Modal(
-                title="Student Information",
-                size="80%",
-                id="programmetype-modal",
-                zIndex=10000,
-                children=[dmc.Text("This is a vertically centered modal.")],
-            ),
-        ], style={'marginBottom': "80px"}),
-    ], style={"width": "90%", "margin": "20px auto"})
+                ], style={'marginBottom': "80px"}),
+            ], style={"width": "90%", "margin": "20px auto"})
+        else:
+            layout = html.Div([
+                dmc.Alert("No Graduands for this Quater",
+                          title="Info", color="violet"),
+            ], style={"width": "90%", "margin": "20px auto"})
     return layout
 # callbacks
 # update total students

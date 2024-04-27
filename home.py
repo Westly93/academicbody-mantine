@@ -25,14 +25,9 @@ def load_dataframe():
     # data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['grade'] = data.apply(lambda row: apply_grading_rule(
         row['gradingrule'], row['mark']), axis=1)
-    df = data[data['grade'].isin(['Fail', "F"])].groupby(
-        by='regnum').size().reset_index(name="failedmodules")
-    new_df = data.merge(df, on='regnum', how='left')
-    new_df['failedmodules'] = new_df['failedmodules'].fillna(0)
-    new_df['failedmodules'] = new_df['failedmodules'].astype(int)
-    new_df['gender'] = new_df['gender'].replace(
+    data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
-    return new_df
+    return data
 
 
 """ def create_table(df):
@@ -41,6 +36,18 @@ def load_dataframe():
     rows = [html.Tr([html.Td(cell) for cell in row]) for row in values]
     table = [html.Thead(header), html.Tbody(rows)]
     return table """
+
+
+def create_ag_grid_table(df, columnDefs):
+    grid = dag.AgGrid(
+        id="ag_tbl",
+        rowData=df.to_dict("records"),
+        columnDefs=columnDefs,
+        columnSize="sizeToFit",
+        defaultColDef={"filter": True},
+        dashGridOptions={"rowSelection": "single", "animateRows": False},
+    ),
+    return grid
 
 
 data = load_dataframe()
@@ -95,11 +102,7 @@ def layout(**kwargs):
             children=[
                 dmc.Col(
                     dmc.Paper(
-                        children=[
-                            dcc.Graph(id="decision_distribution") if 'decision' in data.columns else dcc.Graph(
-                                id="failedmodules_distribution"),
-
-                        ],
+                        children=[dcc.Graph(id="decision_distribution")],
                         shadow="xs",
                     ), span="auto"),
                 dmc.Col([
@@ -131,18 +134,13 @@ def layout(**kwargs):
         dmc.Grid(
             children=[
 
-                dmc.Col([
+                dmc.Col(
                     dmc.Paper(
                         id="tbl",
                         children=[],
                         shadow="xs",
                         style={"padding": "10px"}
-                    )] if 'decision' in data.columns else dmc.Paper(
-                        id="failedmodules_table",
-                        children=[],
-                        shadow="xs",
-                        style={"padding": "10px"}
-                ), span="auto"),
+                    ), span="auto"),
 
             ], style={"marginTop": "10px", "marginBottom": "20px"}
         ),
@@ -151,12 +149,6 @@ def layout(**kwargs):
                 title="Student Information",
                 size="80%",
                 id="modal",
-                zIndex=10000,
-                children=[dmc.Text("This is a vertically centered modal.")],
-            )if 'decision' in data.columns else dmc.Modal(
-                title="Student Information",
-                size="80%",
-                id="failedmodules_modal",
                 zIndex=10000,
                 children=[dmc.Text("This is a vertically centered modal.")],
             ),
@@ -208,28 +200,19 @@ def layout(**kwargs):
 
                 dmc.Col([
                     dmc.Paper(
-                        children=[
-                            dcc.Graph(id="programme_decisions")
-                            if 'decision' in data.columns else dcc.Graph(id="failedmodules_programme_decisions"),
-
-                        ],
+                        children=[dcc.Graph(id="programme_decisions")],
                         shadow="xs",
                         style={"padding": "10px"}
                     )
                 ], span="auto"),
-                dmc.Col([
+                dmc.Col(
 
                     dmc.Paper(
                         id="programme-decision-table",
                         children=[],
                         shadow="xs",
                         style={"padding": "10px"}
-                    )if 'decision' in data.columns else dmc.Paper(
-                        id="failedmodules_programme_table",
-                        children=[],
-                        shadow="xs",
-                        style={"padding": "10px"}
-                    )], span="auto"),
+                    ), span="auto"),
 
             ], style={"marginTop": "10px", "marginBottom": "20px"}
         ),
@@ -238,12 +221,6 @@ def layout(**kwargs):
                 title="Student Information",
                 size="80%",
                 id="modal2",
-                zIndex=10000,
-                children=[dmc.Text("This is a vertically centered modal.")],
-            ) if 'decision' in data.columns else dmc.Modal(
-                title="Student Information",
-                size="80%",
-                id="failedmodules_programme_modal",
                 zIndex=10000,
                 children=[dmc.Text("This is a vertically centered modal.")],
             ),
@@ -434,9 +411,13 @@ def module_pass_rate(faculty, programme):
      Input("semester_selection", "value")]
 )
 def programme_decision_distribution(faculty, programme, attendancetype, academicyear, semester):
-    data_grouped = data[(data['faculty'] == faculty) & (data['attendancetype'] == attendancetype) & (data['programme'] == programme) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].groupby(by="decision")[
+    new_df = data[data['grade'].isin(['Fail', "F"])].groupby(
+        by='regnum').size().reset_index(name="Failed Modules")
+    data_grouped = new_df.groupby(
+        by="failedmodules").size().reset_index(name="Students")
+    """ data_grouped = data[(data['faculty'] == faculty) & (data['attendancetype'] == attendancetype) & (data['programme'] == programme) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].groupby(by="decision")[
         'regnum'].nunique().reset_index(
-        name="Students")
+        name="Students") """
     # print(data_grouped)
     return {
         'data': [
@@ -591,124 +572,6 @@ def gender_chart(faculty):
             )
         )
     }
-
-# Failed modules distribution
-
-
-@callback(
-    Output('failedmodules_distribution', "figure"),
-    Input("faculty_selection", "value")
-)
-def update_failedmodules(faculty):
-    data_grouped = data[(data['faculty'] == faculty)].groupby(by="failedmodules")[
-        'regnum'].nunique()
-    data_grouped = data_grouped.reset_index(
-        name="Students")
-    # print(data_grouped)
-    return {
-        'data': [
-            go.Pie(
-                labels=[
-                    f'Modules: {failedmodule}' for failedmodule in data_grouped.failedmodules],
-                values=data_grouped["Students"],
-                hoverinfo="label+value+percent",
-                textinfo="label+value",
-                textfont=dict(size=12),
-                hole=.7,
-                rotation=45
-            )
-        ],
-        "layout": go.Layout(
-            width=350,
-            height=350,
-            hovermode='closest',
-            title={
-                "text": "Failed Modules Distribution ",
-                "y": 0.93,
-                "x": 0.6,
-                "xanchor": 'right',
-                "yanchor": 'top',
-
-            },
-            titlefont={
-                "color": "black",
-                "size": 16
-            },
-            legend={
-                "orientation": 'v',
-                "xanchor": 'left',
-                "x": 0.5,
-                "y": -0.9
-            },
-            font=dict(
-                family="sans-serif",
-                size=12,
-                color='black'
-            )
-        )
-    }
-# failed modules programme decisions
-
-
-@callback(
-    Output('failedmodules_programme_decisions', "figure"),
-    [
-        Input("faculty_selection", "value"),
-        Input("programme_selection", "value"),
-        Input("attendancetype_selection", "value"),
-        Input("academicyear_selection", "value"),
-        Input("semester_selection", "value")]
-)
-def failedmodules_programme_distribution(faculty, programme, attendancetype, academicyear, semester):
-    data_grouped = data[(data['faculty'] == faculty) & (data['programme'] == programme) &
-                        (data['attendancetype'] == attendancetype) & (data['academicyear'] == int(academicyear)) &
-                        (data['semester'] == int(semester))].groupby(by="failedmodules")[
-        'regnum'].nunique()
-    data_grouped = data_grouped.reset_index(
-        name="Students")
-    # print("failed modules ", data_grouped)
-    return {
-        'data': [
-            go.Pie(
-                labels=[
-                    f'Modules: {failedmodule}' for failedmodule in data_grouped.failedmodules],
-                values=data_grouped["Students"],
-                hoverinfo="label+value+percent",
-                textinfo="label+value",
-                textfont=dict(size=12),
-                hole=.7,
-                rotation=45
-            )
-        ],
-        "layout": go.Layout(
-            width=350,
-            height=350,
-            hovermode='closest',
-            title={
-                "text": "Failed Modules Distribution ",
-                "y": 0.93,
-                "x": 0.5,
-                "xanchor": 'center',
-                "yanchor": 'top',
-
-            },
-            titlefont={
-                "color": "black",
-                "size": 16
-            },
-            legend={
-                "orientation": 'h',
-                "xanchor": 'left',
-                "x": 0.5,
-                "y": -0.9
-            },
-            font=dict(
-                family="sans-serif",
-                size=12,
-                color='black'
-            )
-        )
-    }
 # decision distribution
 
 
@@ -716,15 +579,19 @@ def failedmodules_programme_distribution(faculty, programme, attendancetype, aca
     Output('decision_distribution', "figure"),
     Input("faculty_selection", "value")
 )
-def go_chart(faculty):
-    data_grouped = data[(data['faculty'] == faculty)].groupby(by="decision")[
-        'regnum'].nunique()
-    data_grouped = data_grouped.reset_index(
-        name="Students")
+def go_chart():
+    new_df = data[data['grade'].isin(['Fail', "F"])].groupby(
+        by='regnum').size().reset_index(name="failedmodules")
+    data_grouped = new_df.groupby(
+        by="failedmodules").size().reset_index(name="Students")
+    """ data_grouped = data[(data['faculty'] == faculty) & (data['attendancetype'] == attendancetype) & (data['programme'] == programme) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].groupby(by="decision")[
+        'regnum'].nunique().reset_index(
+        name="Students") """
+    # print(data_grouped)
     return {
         'data': [
             go.Pie(
-                labels=data_grouped.decision,
+                labels=data_grouped.failedmodules,
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
                 textinfo="label+value",
@@ -738,7 +605,7 @@ def go_chart(faculty):
             height=350,
             hovermode='closest',
             title={
-                "text": "Decision Distribution ",
+                "text": "Failed Modules Distribution",
                 "y": 0.93,
                 "x": 0.5,
                 "xanchor": 'center',
@@ -751,7 +618,7 @@ def go_chart(faculty):
             },
             legend={
                 "orientation": 'h',
-                "xanchor": 'left',
+                "xanchor": 'right',
                 "x": 0.5,
                 "y": -0.9
             },
@@ -1183,700 +1050,6 @@ def update(cell_changed):
         db.session.commit() """
         return dmc.Alert(f"Database updated with edited data: {cell_changed[0]['data']['firstnames']}", title="Success!", color="green")
     return None
-
-# Failed modules table
-
-
-@callback(
-    Output('failedmodules_table', "children"),
-    [Input("failedmodules_distribution", "clickData"),
-     Input("faculty_selection", "value")]
-)
-def failedmodules_table(click_data, faculty):
-    ctx = dash.callback_context
-    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    df = data[data['faculty'] == faculty].drop_duplicates(
-        ['regnum'], keep='last')
-    failedmodules = df['failedmodules'].unique().tolist()
-    if trigger_id == 'failedmodules_distribution':
-
-        # get vendor name from clickData
-        if click_data is not None:
-            failedmodule = int(click_data['points'][0]['label'].split(' ')[-1])
-            # print(failedmodule)
-            if failedmodule in failedmodules:
-                # print("Module is in modules")
-                new_df = df[df['failedmodules'] == failedmodule]
-                ag_table = html.Div([
-                    html.Div([
-                        html.Div([
-                            dmc.Text(
-                                f"Failed Modules: {failedmodule}", weight=500),
-                            dmc.ActionIcon(
-                                DashIconify(icon="bi:download"),
-                                size="sm",
-                                variant="subtle",
-                                id="failedmodules_tbl-btn",
-                                n_clicks=0,
-                                mb=10,
-                                style={"marginLeft": "5px"}
-                            ),
-
-                        ], style={"display": "flex"}),
-                        dmc.Switch(
-                            id='cell-editing',
-                            label="Edit Mode",
-                            onLabel="ON",
-                            offLabel="OFF",
-                            checked=False
-                        )
-                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-                    dag.AgGrid(
-                        id="failedmodules_tbl",
-                        rowData=new_df.to_dict("records"),
-                        columnDefs=[
-                            {
-                                "headerName": "RegNum",
-                                'field': 'regnum'
-                            },
-                            {
-                                "headerName": "First Name",
-                                'field': 'firstnames'
-                            },
-                            {
-                                "headerName": "Surname",
-                                'field': 'surname'
-                            },
-                            {
-                                "headerName": "Failed Modules",
-                                'field': 'failedmodules',
-                                "cellEditorPopup": True,
-
-                                "cellEditorPopupPosition": "under",
-                            }
-                        ],
-                        columnSize="sizeToFit",
-                        defaultColDef={"filter": True},
-                        csvExportParams={
-                            "fileName": f"Failed_{failedmodule}.csv",
-                        },
-                        dashGridOptions={
-                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                    ),
-                ])
-                return ag_table
-
-        else:
-            new_df = df[df["failedmodules"] == failedmodules[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(
-                            f"Failed Modules: {failedmodules[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="failedmodules_tbl-btn",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
-
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-
-                dag.AgGrid(
-                    id="failedmodules_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"Failed_{failedmodules[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
-
-            ])
-            return ag_table
-    else:
-        if len(failedmodules) > 0:
-            new_df = df[df["failedmodules"] == failedmodules[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(
-                            f"Failed Modules: {failedmodules[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="failedmodules_tbl-btn",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
-
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-
-                dag.AgGrid(
-                    id="failedmodules_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
-
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"failed_{failedmodules[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
-
-            ])
-            return ag_table
-        return dmc.Alert(
-            "Something happened! You made a mistake and there is no going back, your data was lost forever!",
-            title="No data to display",
-        )
-# Download csv
-# Download csv
-
-
-@callback(
-    Output("failedmodules_tbl", "exportDataAsCsv"),
-    Input("failedmodules_tbl-btn", "n_clicks"),
-)
-def export_data(n_clicks):
-    if n_clicks:
-        return True
-    return False
-
-# failed modules programme table
-
-
-@callback(
-    Output('failedmodules_programme_table', "children"),
-    [Input("failedmodules_programme_decisions", "clickData"),
-     Input("faculty_selection", "value"),
-        Input("programme_selection", "value"),
-        Input("attendancetype_selection", "value"),
-        Input("academicyear_selection", "value"),
-        Input("semester_selection", "value")]
-)
-def failedmodules_programme_table(click_data, faculty, programme, attendancetype, academicyear, semester):
-    ctx = dash.callback_context
-    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    df = data[(data['faculty'] == faculty) & (data['programme'] == programme) & (data['attendancetype'] == attendancetype) &
-              (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].drop_duplicates(
-        ['regnum'], keep='last')
-    failedmodules = df['failedmodules'].unique().tolist()
-    if trigger_id == 'failedmodules_programme_decisions':
-
-        # get vendor name from clickData
-        if click_data is not None:
-            failedmodule = int(click_data['points'][0]['label'].split(' ')[-1])
-            # print(failedmodule)
-            if failedmodule in failedmodules:
-                # print("Module is in modules")
-                new_df = df[df['failedmodules'] == failedmodule]
-                ag_table = html.Div([
-                    html.Div([
-                        html.Div([
-                            dmc.Text(
-                                f"Failed Modules: {failedmodule}", weight=500),
-                            dmc.ActionIcon(
-                                DashIconify(icon="bi:download"),
-                                size="sm",
-                                variant="subtle",
-                                id="failedmodules_programme_tbl-btn",
-                                n_clicks=0,
-                                mb=10,
-                                style={"marginLeft": "5px"}
-                            ),
-
-                        ], style={"display": "flex"}),
-                        dmc.Switch(
-                            id='cell-editing',
-                            label="Edit Mode",
-                            onLabel="ON",
-                            offLabel="OFF",
-                            checked=False
-                        )
-                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-                    dag.AgGrid(
-                        id="failedmodules_programme_tbl",
-                        rowData=new_df.to_dict("records"),
-                        columnDefs=[
-                            {
-                                "headerName": "RegNum",
-                                'field': 'regnum'
-                            },
-                            {
-                                "headerName": "First Name",
-                                'field': 'firstnames'
-                            },
-                            {
-                                "headerName": "Surname",
-                                'field': 'surname'
-                            },
-                            {
-                                "headerName": "Failed Modules",
-                                'field': 'failedmodules',
-                                "cellEditorPopup": True,
-
-                                "cellEditorPopupPosition": "under",
-                            }
-                        ],
-                        columnSize="sizeToFit",
-                        defaultColDef={"filter": True},
-                        csvExportParams={
-                            "fileName": f"{failedmodule}.csv",
-                        },
-                        dashGridOptions={
-                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                    ),
-                ])
-                return ag_table
-
-        else:
-            new_df = df[df["failedmodules"] == failedmodules[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(
-                            f"Failed Modules: {failedmodules[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="failedmodules_programme_tbl-btn",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
-
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-
-                dag.AgGrid(
-                    id="failedmodules_programme_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{failedmodules[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
-
-            ])
-            return ag_table
-    else:
-        if len(failedmodules) > 0:
-            new_df = df[df["failedmodules"] == failedmodules[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(
-                            f"Failed Modules: {failedmodules[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="failedmodules_programme_tbl-btn",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
-
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-
-                dag.AgGrid(
-                    id="failedmodules_programme_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
-
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{failedmodules[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
-
-            ])
-            return ag_table
-        return dmc.Alert(
-            "Something happened! You made a mistake and there is no going back, your data was lost forever!",
-            title="No data to display",
-        )
-
-# Download csv
-
-
-@callback(
-    Output("failedmodules_programme_tbl", "exportDataAsCsv"),
-    Input("failedmodules_programme_tbl-btn", "n_clicks"),
-)
-def export_data(n_clicks):
-    if n_clicks:
-        return True
-    return False
-# output failed module programme selected rows
-
-
-@ callback(
-    Output("failedmodules_programme_modal", "opened"),
-    Output("failedmodules_programme_modal", "children"),
-    Input("failedmodules_programme_tbl", "n_clicks"),
-    Input("failedmodules_programme_tbl", "selectedRows"),
-    State("failedmodules_programme_modal", "opened"),
-    prevent_initial_call=True,
-)
-def output_failedmodules_programme_selected_rows(n_clicks, selected_rows, opened):
-    ctx = dash.callback_context
-    # print(ctx.triggered[0]['prop_id'])
-    children = []
-    if ctx.triggered[0]['prop_id'] == "failedmodules_programme_tbl.selectedRows":
-        if selected_rows:
-            # print(f"The row is selected {selected_rows}")
-            regnum = selected_rows[0]["regnum"]
-            student_info = data[data['regnum'] == regnum]
-
-            info = html.Div([
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Registration Number"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['regnum']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("First names"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['firstnames']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Surname"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['surname']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Faculty"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['faculty']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Programme"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['programme']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Attendance Type"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['attendancetype']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Academic Year"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['academicyear']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Semester"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['semester']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                html.Br(),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Failed Modules"), span=6),
-                        dmc.Col([
-                            dmc.Text(
-                                f"{student_info['failedmodules'].iloc[0]}")
-                        ], span=6),
-                    ],
-                    gutter="xl",
-                ),
-                html.Br(),
-                dmc.Text("Modules", weight=500),
-                dag.AgGrid(
-                    id="row-selection-popup-popup",
-                    rowData=student_info.to_dict("records"),
-                    columnDefs=[
-                        {'field': 'module'},
-                        {'field': 'mark'},
-                        {'field': 'grade'}],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False},
-                ),
-
-            ])
-            children.append(info)
-            return not opened, children
-        else:
-            return dash.no_update, dash.no_update
-    else:
-        row = dmc.Text("Extra small text", size="xs")
-        children.append(row)
-        return dash.no_update, dash.no_update
-# Output failed module selected rows
-
-
-@ callback(
-    Output("failedmodules_modal", "opened"),
-    Output("failedmodules_modal", "children"),
-    Input("failedmodules_tbl", "n_clicks"),
-    Input("failedmodules_tbl", "selectedRows"),
-    State("failedmodules_modal", "opened"),
-    prevent_initial_call=True,
-)
-def output_failedmodules_selected_rows(n_clicks, selected_rows, opened):
-    ctx = dash.callback_context
-    # print(ctx.triggered[0]['prop_id'])
-    children = []
-    if ctx.triggered[0]['prop_id'] == "failedmodules_tbl.selectedRows":
-        if selected_rows:
-            # print(f"The row is selected {selected_rows}")
-            regnum = selected_rows[0]["regnum"]
-            student_info = data[data['regnum'] == regnum]
-
-            info = html.Div([
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Registration Number"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['regnum']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("First names"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['firstnames']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Surname"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['surname']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Faculty"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['faculty']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Programme"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['programme']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Attendance Type"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['attendancetype']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Academic Year"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['academicyear']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Semester"), span=6),
-                        dmc.Col(
-                            dmc.Text(f"{selected_rows[0]['semester']}"), span=6),
-                    ],
-                    gutter="xl",
-                ),
-
-
-                dmc.Grid(
-                    children=[
-                        dmc.Col(dmc.Text("Failed Modules"), span=6),
-                        dmc.Col([
-                            dmc.Text(
-                                f"{student_info['failedmodules'].iloc[0]}")
-                        ], span=6),
-                    ],
-                    gutter="xl",
-                ),
-                html.Br(),
-                dmc.Text("Modules", weight=500),
-                dag.AgGrid(
-                    id="row-selection-popup-popup",
-                    rowData=student_info.to_dict("records"),
-                    columnDefs=[
-                        {'field': 'module'},
-                        {'field': 'mark'},
-                        {'field': 'grade'}],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False},
-                ),
-
-            ])
-            children.append(info)
-            return not opened, children
-        else:
-            return dash.no_update, dash.no_update
-    else:
-        row = dmc.Text("Extra small text", size="xs")
-        children.append(row)
-        return dash.no_update, dash.no_update
 # decisions
 
 
@@ -1888,9 +1061,12 @@ def output_failedmodules_selected_rows(n_clicks, selected_rows, opened):
 def decision_table(click_data, faculty):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    df = data[data['faculty'] == faculty].drop_duplicates(
-        ['regnum'], keep='last')
-    decisions = df['decision'].unique().tolist()
+    df = data[data['grade'].isin(['Fail', "F"])].groupby(
+        by='regnum').size().reset_index(name="failedmodules")
+    # df = data[data['faculty'] == faculty].drop_duplicates(
+    #    ['regnum'], keep='last')
+    # decisions = df['decision'].unique().tolist()
+    decisions = df.failedmodules.unique().tolist()
     if trigger_id == 'decision_distribution':
 
         # get vendor name from clickData
@@ -1898,7 +1074,7 @@ def decision_table(click_data, faculty):
             decision = click_data['points'][0]['label']
             # print(academicyear.split('.'))
             if decision in decisions:
-                new_df = df[df['decision'] == decision]
+                new_df = df[df['failedmodules'] == decision]
                 ag_table = html.Div([
                     html.Div([
                         html.Div([
@@ -1958,7 +1134,7 @@ def decision_table(click_data, faculty):
                 return ag_table
 
         else:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["failedmodules"] == decisions[0]]
             ag_table = html.Div([
                 html.Div([
                     html.Div([
@@ -2019,11 +1195,11 @@ def decision_table(click_data, faculty):
             return ag_table
     else:
         if len(decisions) > 0:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["failedmodules"] == decisions[0]]
             ag_table = html.Div([
                 html.Div([
                     html.Div([
-                        dmc.Text(f"{decisions[0]}", weight=500),
+                        dmc.Text(f"Failed {decisions[0]} module", weight=500),
                         dmc.ActionIcon(
                             DashIconify(icon="bi:download"),
                             size="sm",
@@ -2145,7 +1321,7 @@ def output_programme_selected_rows(n_clicks, selected_rows, opened):
     children = []
     if ctx.triggered[0]['prop_id'] == "programme_decision_table.selectedRows":
         if selected_rows:
-            # print(" The row is selected")
+            print(" The row is selected")
             regnum = selected_rows[0]["regnum"]
             student_info = data[data['regnum'] == regnum]
 

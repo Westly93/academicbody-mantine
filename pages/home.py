@@ -30,6 +30,8 @@ def load_dataframe():
     new_df = data.merge(df, on='regnum', how='left')
     new_df['failedmodules'] = new_df['failedmodules'].fillna(0)
     new_df['failedmodules'] = new_df['failedmodules'].astype(int)
+    new_df['decision'] = new_df['failedmodules'].apply(
+        lambda x: 'FAILED AT LEAST ONE MODULE' if x > 0 else 'PASSED ALL MODULES')
     new_df['gender'] = new_df['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
     return new_df
@@ -167,11 +169,7 @@ def layout(**kwargs):
             id="programme_selection",
 
         ),
-        dmc.Paper(
-            children=[dcc.Graph(id="module_performance")],
-            shadow="xs",
-            style={"marginTop": "20px", "padding": "10px"}
-        ),
+
         dmc.Grid(
             children=[
                 dmc.Col([
@@ -217,21 +215,28 @@ def layout(**kwargs):
                         style={"padding": "10px"}
                     )
                 ], span="auto"),
-                dmc.Col([
 
-                    dmc.Paper(
+            ], style={"marginTop": "10px", "marginBottom": "20px"}
+        ),
+        dmc.Grid(gutter="xl", children=[
+            dmc.Col([
+
+                dmc.Paper(
                         id="programme-decision-table",
                         children=[],
                         shadow="xs",
                         style={"padding": "10px"}
-                    )if 'decision' in data.columns else dmc.Paper(
-                        id="failedmodules_programme_table",
-                        children=[],
-                        shadow="xs",
-                        style={"padding": "10px"}
-                    )], span="auto"),
-
-            ], style={"marginTop": "10px", "marginBottom": "20px"}
+                )if 'decision' in data.columns else dmc.Paper(
+                    id="failedmodules_programme_table",
+                    children=[],
+                    shadow="xs",
+                    style={"padding": "10px"}
+                )], span="auto"),
+        ]),
+        dmc.Paper(
+            children=[dcc.Graph(id="module_performance")],
+            shadow="xs",
+            style={"marginTop": "20px", "padding": "10px"}
         ),
         html.Div(id="programme_selected_rows", children=[
             dmc.Modal(
@@ -320,10 +325,14 @@ def update_total_programmes(faculty):
 @callback(
     Output("module_performance", "figure"),
     [Input("faculty_selection", "value"),
-     Input("programme_selection", "value")]
+     Input("programme_selection", "value"),
+     Input("attendancetype_selection", "value"),
+     Input("academicyear_selection", "value"),
+     Input("semester_selection", "value")]
 )
-def module_pass_rate(faculty, programme):
-    df = data[(data['faculty'] == faculty) & (data['programme'] == programme)]
+def module_pass_rate(faculty, programme, attendancetype, academicyear, semester):
+    df = data[(data['faculty'] == faculty) & (data['programme'] == programme) & (data['attendancetype'] ==
+                                                                                 attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))]
     module_pass_rate = df.groupby(
         'module')['mark'].apply(lambda x: (x >= 50).mean() * 100).reset_index(
         name="Pass Rate")
@@ -342,20 +351,6 @@ def module_pass_rate(faculty, programme):
                 hovertext="<b> Module </b>" +
                 module_pass_rate['module'] + "<br>" + "<b> Pass Rate </b>" +
                 module_pass_rate["Pass Rate"].astype(str)
-            ),
-            go.Scatter(
-                x=grouped_data['module'],
-                y=grouped_data["Students"],
-                mode="lines",
-                name="Module population",
-                line=dict(
-                    width=3,
-                    color="#FF00FF"
-                ),
-                hoverinfo="text",
-                hovertext="<b> Module </b>" +
-                grouped_data['module'] + "<br>" + "<b> Students </b>" +
-                grouped_data["Students"].astype(str)
             )
         ],
         "layout": go.Layout(
@@ -451,8 +446,6 @@ def programme_decision_distribution(faculty, programme, attendancetype, academic
             )
         ],
         "layout": go.Layout(
-            width=350,
-            height=350,
             hovermode='closest',
             title={
                 "text": "Decision Distribution",
@@ -467,10 +460,10 @@ def programme_decision_distribution(faculty, programme, attendancetype, academic
                 "size": 16
             },
             legend={
-                "orientation": 'h',
+                'orientation': 'v',
                 "xanchor": 'right',
-                "x": 0.5,
-                "y": -0.9
+                "x": 1,
+                "y": 1
             },
             font=dict(
                 family="sans-serif",
@@ -556,15 +549,13 @@ def gender_chart(faculty):
                 labels=data_grouped.gender,
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
-                textinfo="label+value",
+                textinfo="value",
                 textfont=dict(size=12),
                 hole=.7,
                 rotation=45
             )
         ],
         "layout": go.Layout(
-            width=300,
-            height=300,
             hovermode='closest',
             title={
                 "text": "Gender Distribution",
@@ -579,10 +570,10 @@ def gender_chart(faculty):
                 "size": 16
             },
             legend={
-                "orientation": 'h',
+                "orientation": 'v',
                 "xanchor": 'right',
-                "x": 0.5,
-                "y": -0.9
+                "x": 0,
+                "y": 0
             },
             font=dict(
                 family="sans-serif",
@@ -727,15 +718,13 @@ def go_chart(faculty):
                 labels=data_grouped.decision,
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
-                textinfo="label+value",
+                textinfo="value",
                 textfont=dict(size=12),
                 hole=.7,
                 rotation=45
             )
         ],
         "layout": go.Layout(
-            width=350,
-            height=350,
             hovermode='closest',
             title={
                 "text": "Decision Distribution ",
@@ -752,8 +741,8 @@ def go_chart(faculty):
             legend={
                 "orientation": 'h',
                 "xanchor": 'left',
-                "x": 0.5,
-                "y": -0.9
+                "x": 0,
+                "y": 0
             },
             font=dict(
                 family="sans-serif",
@@ -794,18 +783,16 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Level {academicyear}.{semester}' for semester in data_grouped.semester],
+                                f'academicyear {academicyear}.{semester}' for semester in data_grouped.semester],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
-                            textinfo="label+value",
+                            textinfo="value",
                             textfont=dict(size=12),
                             hole=.7,
                             rotation=45
                         )
                     ],
                     "layout": go.Layout(
-                        width=300,
-                        height=300,
                         hovermode='closest',
                         title={
                             "text": "Semester Students Distribution",
@@ -822,8 +809,8 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                         legend={
                             "orientation": 'h',
                             "xanchor": 'left',
-                            "x": 0.5,
-                            "y": -0.9
+                            "x": 0,
+                            "y": 0
                         },
                         font=dict(
                             family="sans-serif",
@@ -842,18 +829,17 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'Level {academicyear}' for academicyear in data_grouped.academicyear],
+                                f'academicyear {academicyear}' for academicyear in data_grouped.academicyear],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
-                            textinfo="label+value",
+                            textinfo="value",
                             textfont=dict(size=12),
                             hole=.7,
                             rotation=45
                         )
                     ],
                     "layout": go.Layout(
-                        width=300,
-                        height=300,
+
                         hovermode='closest',
                         title={
                             "text": "Academic Year Students Distribution",
@@ -870,8 +856,8 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                         legend={
                             "orientation": 'h',
                             "xanchor": 'center',
-                            "x": 0.5,
-                            "y": -0.9
+                            "x": 0,
+                            "y": 0
                         },
                         font=dict(
                             family="sans-serif",
@@ -889,18 +875,16 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
             'data': [
                 go.Pie(
                     labels=[
-                        f'Level {academicyear}' for academicyear in data_grouped.academicyear],
+                        f'academicyear {academicyear}' for academicyear in data_grouped.academicyear],
                     values=data_grouped["Students"],
                     hoverinfo="label+value+percent",
-                    textinfo="label+value",
+                    textinfo="value",
                     textfont=dict(size=12),
                     hole=.7,
                     rotation=45
                 )
             ],
             "layout": go.Layout(
-                width=300,
-                height=300,
                 hovermode='closest',
                 title={
                     "text": "Academic Year Students Distribution",
@@ -917,8 +901,8 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                 legend={
                     "orientation": 'h',
                     "xanchor": 'center',
-                    "x": 0.5,
-                    "y": -0.9
+                    "x": 0,
+                    "y": 0
                 },
                 font=dict(
                     family="sans-serif",
@@ -955,183 +939,254 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
 
                 new_df = df[df['decision'] == decision]
                 # print("You clicked", new_df)
-                ag_table = html.Div([
-                    html.Div([
-                        html.Div([
-                            dmc.Text(f"{decision}", weight=500),
-                            dmc.ActionIcon(
-                                DashIconify(icon="bi:download"),
-                                size="sm",
-                                variant="subtle",
-                                id="csv-button",
-                                n_clicks=0,
-                                mb=10,
-                                style={"marginLeft": "5px"}
-                            ),
+                ag_table = dmc.Accordion(
+                    children=[
+                        dmc.AccordionItem(
+                            [
+                                dmc.AccordionControl(f"{decision}",
+                                                     icon=DashIconify(
+                                                         icon="tabler:user",
+                                                         width=20,
+                                                     ),
+                                                     ),
+                                dmc.AccordionPanel(
+                                    html.Div([
+                                        html.Div([
+                                            html.Div([
+                                                dmc.ActionIcon(
+                                                    DashIconify(
+                                                        icon="bi:download"),
+                                                    size="sm",
+                                                    variant="subtle",
+                                                    id="csv-button",
+                                                    n_clicks=0,
+                                                    mb=10,
+                                                    style={
+                                                        "marginLeft": "5px"}
+                                                ),
 
-                        ], style={"display": "flex"}),
-                        dmc.Switch(
-                            id='cell-editing-switch',
-                            label="Edit Mode",
-                            onLabel="ON",
-                            offLabel="OFF",
-                            checked=False
-                        )
-                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-                    dag.AgGrid(
-                        id="programme_decision_table",
-                        rowData=new_df.to_dict('records'),
-                        columnDefs=[
-                            {
-                                "headerName": "RegNum",
-                                'field': 'regnum'
-                            },
-                            {
-                                "headerName": "First Name",
-                                'field': 'firstnames'
-                            },
-                            {
-                                "headerName": "Surname",
-                                'field': 'surname'
-                            },
-                            {
-                                "headerName": "Decision Extras",
-                                'field': 'decisionextras',
-                                "cellEditorPopup": True,
-                                "cellEditorPopupPosition": "under",
-                            }
-                        ],
-                        columnSize="sizeToFit",
-                        csvExportParams={
-                            "fileName": f"{decision}.csv",
-                        },
-                        defaultColDef={"filter": True},
-                        dashGridOptions={
-                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                    ),
+                                            ], style={"display": "flex"}),
+                                            dmc.Switch(
+                                                id='cell-editing',
+                                                label="Edit Mode",
+                                                onLabel="ON",
+                                                offLabel="OFF",
+                                                checked=False
+                                            )
+                                        ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                    html.Div(id="output-1")])
+                                        dag.AgGrid(
+                                            id="programme_decision_table",
+                                            rowData=new_df.to_dict(
+                                                "records"),
+                                            columnDefs=[
+                                                {
+                                                    "headerName": "RegNum",
+                                                    'field': 'regnum'
+                                                },
+                                                {
+                                                    "headerName": "First Name",
+                                                    'field': 'firstnames'
+                                                },
+                                                {
+                                                    "headerName": "Surname",
+                                                    'field': 'surname'
+                                                },
+                                                {
+                                                    "headerName": "Failed Modules",
+                                                    'field': 'failedmodules',
+
+                                                    "cellEditorPopup": True,
+                                                    "cellEditorPopupPosition": "under",
+                                                }
+                                            ],
+                                            columnSize="sizeToFit",
+                                            defaultColDef={
+                                                "filter": True},
+                                            csvExportParams={
+                                                "fileName": f"{decisions[0]}.csv",
+                                            },
+                                            dashGridOptions={
+                                                "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                        ), html.Div(id="output-1")
+
+                                    ])
+                                ),
+                            ],
+                            value="customization",
+                        ),
+                    ],
+                    value=["flexibility", ],
+                    transitionDuration=1000
+                )
                 return ag_table
 
         else:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(f"{decisions[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="csv-button",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
+            ag_table = dmc.Accordion(
+                children=[
+                    dmc.AccordionItem(
+                        [
+                            dmc.AccordionControl(f"{decisions[0]}",
+                                                 icon=DashIconify(
+                                                     icon="tabler:user",
+                                                     width=20,
+                                                 ),
+                                                 ),
+                            dmc.AccordionPanel(
+                                html.Div([
+                                    html.Div([
+                                        html.Div([
+                                            dmc.ActionIcon(
+                                                DashIconify(
+                                                    icon="bi:download"),
+                                                size="sm",
+                                                variant="subtle",
+                                                id="csv-button",
+                                                n_clicks=0,
+                                                mb=10,
+                                                style={
+                                                    "marginLeft": "5px"}
+                                            ),
 
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing-switch',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-                dag.AgGrid(
-                    id="programme_decision_table",
-                    rowData=new_df.to_dict('records'),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Decision Extras",
-                            'field': 'decisionextras',
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{decisions[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ),
+                                        ], style={"display": "flex"}),
+                                        dmc.Switch(
+                                            id='cell-editing',
+                                            label="Edit Mode",
+                                            onLabel="ON",
+                                            offLabel="OFF",
+                                            checked=False
+                                        )
+                                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                html.Div(id="output-1")]),
+                                    dag.AgGrid(
+                                        id="programme_decision_table",
+                                        rowData=new_df.to_dict(
+                                            "records"),
+                                        columnDefs=[
+                                            {
+                                                "headerName": "RegNum",
+                                                'field': 'regnum'
+                                            },
+                                            {
+                                                "headerName": "First Name",
+                                                'field': 'firstnames'
+                                            },
+                                            {
+                                                "headerName": "Surname",
+                                                'field': 'surname'
+                                            },
+                                            {
+                                                "headerName": "Failed Modules",
+                                                'field': 'failedmodules',
+
+                                                "cellEditorPopup": True,
+                                                "cellEditorPopupPosition": "under",
+                                            }
+                                        ],
+                                        columnSize="sizeToFit",
+                                        defaultColDef={
+                                            "filter": True},
+                                        csvExportParams={
+                                            "fileName": f"{decisions[0]}.csv",
+                                        },
+                                        dashGridOptions={
+                                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                    ), html.Div(id="output-1")
+
+                                ])
+                            ),
+                        ],
+                        value="customization",
+                    ),
+                ],
+                value=["flexibility", ],
+                transitionDuration=1000
+            )
             return ag_table
     else:
         if len(decisions) > 0:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(f"{decisions[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="csv-button",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
+            ag_table = dmc.Accordion(
+                children=[
+                    dmc.AccordionItem(
+                        [
+                            dmc.AccordionControl(f"{decisions[0]}",
+                                                 icon=DashIconify(
+                                                     icon="tabler:user",
+                                                     width=20,
+                                                 ),
+                                                 ),
+                            dmc.AccordionPanel(
+                                html.Div([
+                                    html.Div([
+                                        html.Div([
+                                            dmc.ActionIcon(
+                                                DashIconify(
+                                                    icon="bi:download"),
+                                                size="sm",
+                                                variant="subtle",
+                                                id="csv-button",
+                                                n_clicks=0,
+                                                mb=10,
+                                                style={
+                                                    "marginLeft": "5px"}
+                                            ),
 
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing-switch',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+                                        ], style={"display": "flex"}),
+                                        dmc.Switch(
+                                            id='cell-editing',
+                                            label="Edit Mode",
+                                            onLabel="ON",
+                                            offLabel="OFF",
+                                            checked=False
+                                        )
+                                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                dag.AgGrid(
-                    id="programme_decision_table",
-                    rowData=new_df.to_dict('records'),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Decision Extras",
-                            'field': 'decisionextras',
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{decisions[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ),
+                                    dag.AgGrid(
+                                        id="programme_decision_table",
+                                        rowData=new_df.to_dict(
+                                            "records"),
+                                        columnDefs=[
+                                            {
+                                                "headerName": "RegNum",
+                                                'field': 'regnum'
+                                            },
+                                            {
+                                                "headerName": "First Name",
+                                                'field': 'firstnames'
+                                            },
+                                            {
+                                                "headerName": "Surname",
+                                                'field': 'surname'
+                                            },
+                                            {
+                                                "headerName": "Failed Modules",
+                                                'field': 'failedmodules',
 
-                html.Div(id="output-1")])
+                                                "cellEditorPopup": True,
+                                                "cellEditorPopupPosition": "under",
+                                            }
+                                        ],
+                                        columnSize="sizeToFit",
+                                        defaultColDef={
+                                            "filter": True},
+                                        csvExportParams={
+                                            "fileName": f"{decisions[0]}.csv",
+                                        },
+                                        dashGridOptions={
+                                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                    ), html.Div(id="output-1")
+
+                                ])
+                            ),
+                        ],
+                        value="customization",
+                    ),
+                ],
+                value=["flexibility", ],
+                transitionDuration=1000
+            )
             return ag_table
         else:
             return dmc.Alert(
@@ -1899,185 +1954,246 @@ def decision_table(click_data, faculty):
             # print(academicyear.split('.'))
             if decision in decisions:
                 new_df = df[df['decision'] == decision]
-                ag_table = html.Div([
-                    html.Div([
-                        html.Div([
-                            dmc.Text(f"{decision}", weight=500),
-                            dmc.ActionIcon(
-                                DashIconify(icon="bi:download"),
-                                size="sm",
-                                variant="subtle",
-                                id="csv-btn",
-                                n_clicks=0,
-                                mb=10,
-                                style={"marginLeft": "5px"}
-                            ),
+                ag_table = dmc.Accordion(
+                    children=[
+                        dmc.AccordionItem(
+                            [
+                                dmc.AccordionControl(f"{decision}",
+                                                     icon=DashIconify(
+                                                         icon="tabler:user",
+                                                         width=20,
+                                                     ),
+                                                     ),
+                                dmc.AccordionPanel(
+                                    html.Div([
+                                        html.Div([
+                                            html.Div([
+                                                dmc.ActionIcon(
+                                                    DashIconify(
+                                                        icon="bi:download"),
+                                                    size="sm",
+                                                    variant="subtle",
+                                                    id="csv-btn",
+                                                    n_clicks=0,
+                                                    mb=10,
+                                                    style={"marginLeft": "5px"}
+                                                ),
 
-                        ], style={"display": "flex"}),
-                        dmc.Switch(
-                            id='cell-editing',
-                            label="Edit Mode",
-                            onLabel="ON",
-                            offLabel="OFF",
-                            checked=False
-                        )
-                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
-                    dag.AgGrid(
-                        id="ag_tbl",
-                        rowData=new_df.to_dict("records"),
-                        columnDefs=[
-                            {
-                                "headerName": "RegNum",
-                                'field': 'regnum'
-                            },
-                            {
-                                "headerName": "First Name",
-                                'field': 'firstnames'
-                            },
-                            {
-                                "headerName": "Surname",
-                                'field': 'surname'
-                            },
-                            {
-                                "headerName": "Decision Extras",
-                                'field': 'decisionextras',
-                                "cellEditorPopup": True,
+                                            ], style={"display": "flex"}),
+                                            dmc.Switch(
+                                                id='cell-editing',
+                                                label="Edit Mode",
+                                                onLabel="ON",
+                                                offLabel="OFF",
+                                                checked=False
+                                            )
+                                        ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                                "cellEditorPopupPosition": "under",
-                            }
-                        ],
-                        columnSize="sizeToFit",
-                        defaultColDef={"filter": True},
-                        csvExportParams={
-                            "fileName": f"{decision}.csv",
-                        },
-                        dashGridOptions={
-                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                    ), html.Div(id="output")
-                ])
+                                        dag.AgGrid(
+                                            id="ag_tbl",
+                                            rowData=new_df.to_dict("records"),
+                                            columnDefs=[
+                                                {
+                                                    "headerName": "RegNum",
+                                                    'field': 'regnum'
+                                                },
+                                                {
+                                                    "headerName": "First Name",
+                                                    'field': 'firstnames'
+                                                },
+                                                {
+                                                    "headerName": "Surname",
+                                                    'field': 'surname'
+                                                },
+                                                {
+                                                    "headerName": "Failed Modules",
+                                                    'field': 'failedmodules',
+
+                                                    "cellEditorPopup": True,
+                                                    "cellEditorPopupPosition": "under",
+                                                }
+                                            ],
+                                            columnSize="sizeToFit",
+                                            defaultColDef={"filter": True},
+                                            csvExportParams={
+                                                "fileName": f"{decisions[0]}.csv",
+                                            },
+                                            dashGridOptions={
+                                                "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                        ), html.Div(id="output")
+
+                                    ])
+                                ),
+                            ],
+                            value="customization",
+                        ),
+                    ],
+                    value=["flexibility", ],
+                    transitionDuration=1000
+                )
                 return ag_table
 
         else:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(f"{decisions[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="csv-button",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
+            ag_table = dmc.Accordion(
+                children=[
+                    dmc.AccordionItem(
+                        [
+                            dmc.AccordionControl(f"{decisions[0]}",
+                                                 icon=DashIconify(
+                                                     icon="tabler:user",
+                                                     width=20,
+                                                 ),
+                                                 ),
+                            dmc.AccordionPanel(
+                                html.Div([
+                                    html.Div([
+                                        html.Div([
+                                            dmc.ActionIcon(
+                                                DashIconify(
+                                                    icon="bi:download"),
+                                                size="sm",
+                                                variant="subtle",
+                                                id="csv-btn",
+                                                n_clicks=0,
+                                                mb=10,
+                                                style={"marginLeft": "5px"}
+                                            ),
 
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+                                        ], style={"display": "flex"}),
+                                        dmc.Switch(
+                                            id='cell-editing',
+                                            label="Edit Mode",
+                                            onLabel="ON",
+                                            offLabel="OFF",
+                                            checked=False
+                                        )
+                                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                dag.AgGrid(
-                    id="ag_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Decision Extras",
-                            'field': 'decisionextras',
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{decisions[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
+                                    dag.AgGrid(
+                                        id="ag_tbl",
+                                        rowData=new_df.to_dict("records"),
+                                        columnDefs=[
+                                            {
+                                                "headerName": "RegNum",
+                                                'field': 'regnum'
+                                            },
+                                            {
+                                                "headerName": "First Name",
+                                                'field': 'firstnames'
+                                            },
+                                            {
+                                                "headerName": "Surname",
+                                                'field': 'surname'
+                                            },
+                                            {
+                                                "headerName": "Failed Modules",
+                                                'field': 'failedmodules',
 
-            ])
+                                                "cellEditorPopup": True,
+                                                "cellEditorPopupPosition": "under",
+                                            }
+                                        ],
+                                        columnSize="sizeToFit",
+                                        defaultColDef={"filter": True},
+                                        csvExportParams={
+                                            "fileName": f"{decisions[0]}.csv",
+                                        },
+                                        dashGridOptions={
+                                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                    ), html.Div(id="output")
+
+                                ])
+                            ),
+                        ],
+                        value="customization",
+                    ),
+                ],
+                value=["flexibility", ],
+                transitionDuration=1000
+            )
             return ag_table
     else:
         if len(decisions) > 0:
             new_df = df[df["decision"] == decisions[0]]
-            ag_table = html.Div([
-                html.Div([
-                    html.Div([
-                        dmc.Text(f"{decisions[0]}", weight=500),
-                        dmc.ActionIcon(
-                            DashIconify(icon="bi:download"),
-                            size="sm",
-                            variant="subtle",
-                            id="csv-button",
-                            n_clicks=0,
-                            mb=10,
-                            style={"marginLeft": "5px"}
-                        ),
+            ag_table = dmc.Accordion(
+                children=[
+                    dmc.AccordionItem(
+                        [
+                            dmc.AccordionControl(f"{decisions[0]}",
+                                                 icon=DashIconify(
+                                                     icon="tabler:user",
+                                                     width=20,
+                                                 ),
+                                                 ),
+                            dmc.AccordionPanel(
+                                html.Div([
+                                    html.Div([
+                                        html.Div([
+                                            dmc.ActionIcon(
+                                                DashIconify(
+                                                    icon="bi:download"),
+                                                size="sm",
+                                                variant="subtle",
+                                                id="csv-btn",
+                                                n_clicks=0,
+                                                mb=10,
+                                                style={"marginLeft": "5px"}
+                                            ),
 
-                    ], style={"display": "flex"}),
-                    dmc.Switch(
-                        id='cell-editing',
-                        label="Edit Mode",
-                        onLabel="ON",
-                        offLabel="OFF",
-                        checked=False
-                    )
-                ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
+                                        ], style={"display": "flex"}),
+                                        dmc.Switch(
+                                            id='cell-editing',
+                                            label="Edit Mode",
+                                            onLabel="ON",
+                                            offLabel="OFF",
+                                            checked=False
+                                        )
+                                    ], style={"display": "flex", "justifyContent": "space-between", "marginBottom": "10px"}),
 
-                dag.AgGrid(
-                    id="ag_tbl",
-                    rowData=new_df.to_dict("records"),
-                    columnDefs=[
-                        {
-                            "headerName": "RegNum",
-                            'field': 'regnum'
-                        },
-                        {
-                            "headerName": "First Name",
-                            'field': 'firstnames'
-                        },
-                        {
-                            "headerName": "Surname",
-                            'field': 'surname'
-                        },
-                        {
-                            "headerName": "Decision Extras",
-                            'field': 'decisionextras',
+                                    dag.AgGrid(
+                                        id="ag_tbl",
+                                        rowData=new_df.to_dict("records"),
+                                        columnDefs=[
+                                            {
+                                                "headerName": "RegNum",
+                                                'field': 'regnum'
+                                            },
+                                            {
+                                                "headerName": "First Name",
+                                                'field': 'firstnames'
+                                            },
+                                            {
+                                                "headerName": "Surname",
+                                                'field': 'surname'
+                                            },
+                                            {
+                                                "headerName": "Failed Modules",
+                                                'field': 'failedmodules',
 
-                            "cellEditorPopup": True,
-                            "cellEditorPopupPosition": "under",
-                        }
-                    ],
-                    columnSize="sizeToFit",
-                    defaultColDef={"filter": True},
-                    csvExportParams={
-                        "fileName": f"{decisions[0]}.csv",
-                    },
-                    dashGridOptions={
-                        "rowSelection": "single", "animateRows": False, "rowHeight": 40},
-                ), html.Div(id="output")
+                                                "cellEditorPopup": True,
+                                                "cellEditorPopupPosition": "under",
+                                            }
+                                        ],
+                                        columnSize="sizeToFit",
+                                        defaultColDef={"filter": True},
+                                        csvExportParams={
+                                            "fileName": f"{decisions[0]}.csv",
+                                        },
+                                        dashGridOptions={
+                                            "rowSelection": "single", "animateRows": False, "rowHeight": 40},
+                                    ), html.Div(id="output")
 
-            ])
+                                ])
+                            ),
+                        ],
+                        value="customization",
+                    ),
+                ],
+                value=["flexibility", ],
+                transitionDuration=1000
+            )
+
             return ag_table
         return dmc.Alert(
             "Something happened! You made a mistake and there is no going back, your data was lost forever!",

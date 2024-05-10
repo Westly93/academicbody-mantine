@@ -1,4 +1,5 @@
 import dash
+import numpy as np
 import pandas as pd
 import dash_ag_grid as dag
 import plotly.graph_objs as go
@@ -20,21 +21,23 @@ def apply_grading_rule(grading_rule, mark):
 
 
 def load_dataframe():
-    data = pd.read_csv("./data/period216.csv")
+    data = pd.read_csv("./data/period220.csv")
     # data = data.drop(columns=['mark.1', 'id'])
     # data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['grade'] = data.apply(lambda row: apply_grading_rule(
         row['gradingrule'], row['mark']), axis=1)
-    df = data[data['grade'].isin(['Fail', "F"])].groupby(
-        by='regnum').size().reset_index(name="failedmodules")
-    new_df = data.merge(df, on='regnum', how='left')
-    new_df['failedmodules'] = new_df['failedmodules'].fillna(0)
-    new_df['failedmodules'] = new_df['failedmodules'].astype(int)
-    new_df['decision'] = new_df['failedmodules'].apply(
-        lambda x: 'FAILED AT LEAST ONE MODULE' if x > 0 else 'PASSED ALL MODULES')
-    new_df['gender'] = new_df['gender'].replace(
+
+    # Create the 'decision' column based on grades
+    data['decision'] = np.where(data['grade'].isin(['F', 'Fail']), 'FAILED AT LEAST ONE MODULE',
+                                np.where(data['grade'] == 'EX', 'EXAMPTED ON AT LEAST ONE MODULE',
+                                         np.where(data['grade'] == 'T', 'TO WRITE ON FIRST ATTEMPT',
+                                                  'PASSED ALL MODULES')))
+
+    # Process the 'gender' column
+    data['gender'] = data['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
-    return new_df
+
+    return data
 
 
 """ def create_table(df):
@@ -91,7 +94,7 @@ def layout(**kwargs):
                     span="auto"),
             ],
             gutter="xl",
-            style={"marginBottom": "20px", "marginTop": "20px"}
+            style={"marginBottom": "10px", "marginTop": "10px"}
         ),
         dmc.Grid(
             children=[
@@ -128,7 +131,7 @@ def layout(**kwargs):
             ],
             justify="center",
             align="center",
-            gutter="md", style={"marginTop": "10px", "marginBottom": "10px"}
+            gutter="md", style={"marginBottom": "10px"}
         ),
         dmc.Grid(
             children=[
@@ -199,7 +202,7 @@ def layout(**kwargs):
 
                 ], span="auto"),
 
-            ], style={"marginTop": "10px", "marginBottom": "20px"}
+            ], style={"marginTop": "10px", "marginBottom": "10px"}
         ),
         dmc.Grid(
             children=[
@@ -212,11 +215,10 @@ def layout(**kwargs):
 
                         ],
                         shadow="xs",
-                        style={"padding": "10px"}
                     )
                 ], span="auto"),
 
-            ], style={"marginTop": "10px", "marginBottom": "20px"}
+            ], style={"marginBottom": "20px"}
         ),
         dmc.Grid(gutter="xl", children=[
             dmc.Col([
@@ -331,26 +333,66 @@ def update_total_programmes(faculty):
      Input("semester_selection", "value")]
 )
 def module_pass_rate(faculty, programme, attendancetype, academicyear, semester):
+    def calculate_failed(grades):
+        return grades[grades.isin(['F', 'Fail'])].count()
+
+    def calculate_passed(grades):
+        return grades[~grades.isin(['F', 'Fail', 'EX', 'T'])].count()
+
+    def calculate_exampted(grades):
+        return grades[grades.isin(['EX'])].count()
+
     df = data[(data['faculty'] == faculty) & (data['programme'] == programme) & (data['attendancetype'] ==
                                                                                  attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))]
-    module_pass_rate = df.groupby(
+    """ module_pass_rate = df.groupby(
         'module')['mark'].apply(lambda x: (x >= 50).mean() * 100).reset_index(
         name="Pass Rate")
     grouped_data = df.groupby(by="module")[
         'regnum'].nunique().reset_index(name="Students")
+    average_marks = df.groupby('module')['mark'].mean().reset_index()
+    failed_students = df[df['mark'] < 50].groupby(
+        by="module")['regnum'].nunique().reset_index(name="Students") """
+    grouped_data = df.groupby('module').agg(
+        totalstudents=('regnum', 'nunique'),
+        avgmark=('mark', 'mean'),
+        failedstudents=('grade', calculate_failed),
+        passedstudents=('grade', calculate_passed),
+        examptedstudents=('grade', calculate_exampted),
+        # Count 'T' grades as students to write on first attempt
+        twfastudents=('grade', lambda x: (x == 'T').sum()),
+        # passrate=('mark', lambda x: (x >= 50).mean() * 100)
+    ).reset_index()
+    grouped_data['passrate'] = (grouped_data['passedstudents'] /
+                                (grouped_data['totalstudents'] - grouped_data['examptedstudents'] - grouped_data['twfastudents'])) * 100
+    grouped_data['passrate'] = grouped_data['passrate'].fillna(0)
+    grouped_data['passrate'] = grouped_data['passrate'].astype(int)
+    grouped_data['avgmark'] = grouped_data['avgmark'].astype(int)
     return {
         "data": [
             go.Bar(
-                x=module_pass_rate['module'],
-                y=module_pass_rate['Pass Rate'],
+                x=grouped_data['module'],
+                y=grouped_data['passrate'],
                 name="Module Pass Rates",
                 marker=dict(
                     color="orange",
                 ),
                 hoverinfo="text",
-                hovertext="<b> Module </b>" +
-                module_pass_rate['module'] + "<br>" + "<b> Pass Rate </b>" +
-                module_pass_rate["Pass Rate"].astype(str)
+                hovertext="<b> Module: </b>" +
+                grouped_data['module'] + "<br>" +
+                "<b>Total Students: </b>" +
+                grouped_data['totalstudents'].astype(str) + "<br>" +
+                "<b>Students Passed: </b>" +
+                grouped_data['passedstudents'].astype(str)+"<br>" +
+                "<b>Students Failed: </b>" +
+                grouped_data['failedstudents'].astype(str) + "<br>" +
+                "<b>Students Exampted: </b>" +
+                grouped_data['examptedstudents'].astype(str) + "<br>" +
+                "<b>Writing on first attempt: </b>" +
+                grouped_data['twfastudents'].astype(str) + "<br>" +
+                "<b>Average Mark: </b>" + grouped_data['avgmark'].astype(str) + '<br>' +
+                "<b> Pass Rate: </b>" +
+                grouped_data["passrate"].astype(str)
+
             )
         ],
         "layout": go.Layout(
@@ -358,7 +400,7 @@ def module_pass_rate(faculty, programme, attendancetype, academicyear, semester)
             plot_bgcolor="#ffffff",
             paper_bgcolor="#ffffff",
             title={
-                "text": "Students Performance Across Modules",
+                "text": "<b>Student Performance by Module: Pass Rate Distribution</b>",
                 "y": 0.93,
                 "x": 0.5,
                 "xanchor": "center",
@@ -386,7 +428,7 @@ def module_pass_rate(faculty, programme, attendancetype, academicyear, semester)
                 )
             ),
             yaxis=dict(
-                title="<b> Pass Rate </b>",
+                title="<b> Pass Rate(%) </b>",
                 color="black",
                 showline=True,
                 showgrid=True,
@@ -429,18 +471,22 @@ def module_pass_rate(faculty, programme, attendancetype, academicyear, semester)
      Input("semester_selection", "value")]
 )
 def programme_decision_distribution(faculty, programme, attendancetype, academicyear, semester):
-    data_grouped = data[(data['faculty'] == faculty) & (data['attendancetype'] == attendancetype) & (data['programme'] == programme) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].groupby(by="decision")[
+    df = data[(data['faculty'] == faculty) & (data['attendancetype'] == attendancetype) & (
+        data['programme'] == programme) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))]
+    data_grouped = df.groupby(by="decision")[
         'regnum'].nunique().reset_index(
         name="Students")
     # print(data_grouped)
     return {
         'data': [
             go.Pie(
-                labels=data_grouped.decision,
+                labels=[
+                    f"{decision}({data_grouped[data_grouped['decision']== decision]['Students'].iloc[0]})" for decision in data_grouped.decision],
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
-                textinfo="label+value",
-                textfont=dict(size=12),
+                textinfo="percent",
+                texttemplate="<b>%{percent}</b>",
+                textfont=dict(size=14),
                 hole=.7,
                 rotation=45
             )
@@ -448,7 +494,7 @@ def programme_decision_distribution(faculty, programme, attendancetype, academic
         "layout": go.Layout(
             hovermode='closest',
             title={
-                "text": "Decision Distribution",
+                "text": f"<b>Decision Distribution({df.regnum.nunique()})</b>",
                 "y": 0.93,
                 "x": 0.5,
                 "xanchor": 'center',
@@ -546,10 +592,12 @@ def gender_chart(faculty):
     return {
         'data': [
             go.Pie(
-                labels=data_grouped.gender,
+                labels=[
+                    f"{gender}({data_grouped[data_grouped['gender']==gender]['Students'].iloc[0]})" for gender in data_grouped.gender],
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
-                textinfo="value",
+                textinfo="percent",
+                texttemplate="<b>%{percent}</b>",
                 textfont=dict(size=12),
                 hole=.7,
                 rotation=45
@@ -558,7 +606,7 @@ def gender_chart(faculty):
         "layout": go.Layout(
             hovermode='closest',
             title={
-                "text": "Gender Distribution",
+                "text": "<b>Gender Distribution</b>",
                 "y": 0.93,
                 "x": 0.5,
                 "xanchor": 'center',
@@ -715,10 +763,13 @@ def go_chart(faculty):
     return {
         'data': [
             go.Pie(
-                labels=data_grouped.decision,
+                labels=[
+                    f"{decision}({data_grouped[data_grouped['decision']== decision]['Students'].iloc[0]})" for decision in data_grouped.decision],
+                # labels=data_grouped.decision,
                 values=data_grouped["Students"],
                 hoverinfo="label+value+percent",
-                textinfo="value",
+                textinfo="percent",
+                texttemplate="<b>%{percent}</b>",
                 textfont=dict(size=12),
                 hole=.7,
                 rotation=45
@@ -727,7 +778,7 @@ def go_chart(faculty):
         "layout": go.Layout(
             hovermode='closest',
             title={
-                "text": "Decision Distribution ",
+                "text": f"<b>Decision Distribution({data[(data['faculty'] == faculty)].regnum.nunique()})</b>",
                 "y": 0.93,
                 "x": 0.5,
                 "xanchor": 'center',
@@ -771,7 +822,8 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
 
         # get vendor name from clickData
         if click_data is not None:
-            academicyear = click_data['points'][0]['label'].split(' ')[1]
+            academicyear = click_data['points'][0]['label'].split(
+                '(')[0].split(' ')[2]
             # print(academicyear.split('.'))
             if int(academicyear) in df['academicyear'].unique().tolist():
 
@@ -783,10 +835,11 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'academicyear {academicyear}.{semester}' for semester in data_grouped.semester],
+                                f"Academic Year {academicyear}.{semester}({data_grouped[data_grouped['semester']==semester]['Students'].iloc[0]})" for semester in data_grouped.semester],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
-                            textinfo="value",
+                            textinfo="percent",
+                            texttemplate="<b>%{percent}</b>",
                             textfont=dict(size=12),
                             hole=.7,
                             rotation=45
@@ -795,7 +848,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     "layout": go.Layout(
                         hovermode='closest',
                         title={
-                            "text": "Semester Students Distribution",
+                            "text": "<b>Semester Students Distribution</b>",
                             "y": 0.93,
                             "x": 0.5,
                             "xanchor": 'center',
@@ -829,10 +882,11 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
                     'data': [
                         go.Pie(
                             labels=[
-                                f'academicyear {academicyear}' for academicyear in data_grouped.academicyear],
+                                f"Academic Year {academicyear}.{semester}({data_grouped[data_grouped['semester']==semester]['Students'].iloc[0]})" for semester in data_grouped.semester],
                             values=data_grouped["Students"],
                             hoverinfo="label+value+percent",
-                            textinfo="value",
+                            textinfo="percent",
+                            texttemplate="<b>%{percent}</b>",
                             textfont=dict(size=12),
                             hole=.7,
                             rotation=45
@@ -842,7 +896,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
 
                         hovermode='closest',
                         title={
-                            "text": "Academic Year Students Distribution",
+                            "text": "<b>Academic Year Students Distribution</b>",
                             "y": 0.93,
                             "x": 0.5,
                             "xanchor": 'center',
@@ -875,10 +929,11 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
             'data': [
                 go.Pie(
                     labels=[
-                        f'academicyear {academicyear}' for academicyear in data_grouped.academicyear],
+                        f"Academic Year {academicyear}({data_grouped[data_grouped['academicyear']==academicyear]['Students'].iloc[0]})" for academicyear in data_grouped.academicyear],
                     values=data_grouped["Students"],
                     hoverinfo="label+value+percent",
-                    textinfo="value",
+                    textinfo="percent",
+                    texttemplate="<b>%{percent}</b>",
                     textfont=dict(size=12),
                     hole=.7,
                     rotation=45
@@ -887,7 +942,7 @@ def academicyear_drilldown(click_data, n_clicks, faculty):
             "layout": go.Layout(
                 hovermode='closest',
                 title={
-                    "text": "Academic Year Students Distribution",
+                    "text": "<b>Academic Year Students Distribution</b>",
                             "y": 0.93,
                             "x": 0.5,
                             "xanchor": 'center',
@@ -927,17 +982,18 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     df = data[(data['faculty'] == faculty) & (data['programme'] == programme) & (data['attendancetype']
-                                                                                 == attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))].drop_duplicates(['regnum'], keep='last')
+                                                                                 == attendancetype) & (data['academicyear'] == int(academicyear)) & (data['semester'] == int(semester))]
     decisions = df['decision'].unique().tolist()
     if trigger_id == 'programme_decisions':
 
         # get vendor name from clickData
         if click_data is not None:
-            decision = click_data['points'][0]['label']
+            decision = click_data['points'][0]['label'].split('(')[0]
             # print(academicyear.split('.'))
             if decision in decisions:
 
-                new_df = df[df['decision'] == decision]
+                new_df = df[df['decision'] == decision].drop_duplicates(
+                    ['regnum'], keep='last')
                 # print("You clicked", new_df)
                 ag_table = dmc.Accordion(
                     children=[
@@ -993,8 +1049,8 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                                                     'field': 'surname'
                                                 },
                                                 {
-                                                    "headerName": "Failed Modules",
-                                                    'field': 'failedmodules',
+                                                    "headerName": "Decision",
+                                                    'field': 'decision',
 
                                                     "cellEditorPopup": True,
                                                     "cellEditorPopupPosition": "under",
@@ -1022,12 +1078,13 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                 return ag_table
 
         else:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
+                ['regnum'], keep='last')
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
                         [
-                            dmc.AccordionControl(f"{decisions[0]}",
+                            dmc.AccordionControl(f"{decisions[-1]}",
                                                  icon=DashIconify(
                                                      icon="tabler:user",
                                                      width=20,
@@ -1077,8 +1134,8 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                                                 'field': 'surname'
                                             },
                                             {
-                                                "headerName": "Failed Modules",
-                                                'field': 'failedmodules',
+                                                "headerName": "Dicision",
+                                                'field': 'decision',
 
                                                 "cellEditorPopup": True,
                                                 "cellEditorPopupPosition": "under",
@@ -1106,12 +1163,13 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
             return ag_table
     else:
         if len(decisions) > 0:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
+                ['regnum'], keep='last')
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
                         [
-                            dmc.AccordionControl(f"{decisions[0]}",
+                            dmc.AccordionControl(f"{decisions[-1]}",
                                                  icon=DashIconify(
                                                      icon="tabler:user",
                                                      width=20,
@@ -1161,8 +1219,8 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                                                 'field': 'surname'
                                             },
                                             {
-                                                "headerName": "Failed Modules",
-                                                'field': 'failedmodules',
+                                                "headerName": "Decision",
+                                                'field': 'decision',
 
                                                 "cellEditorPopup": True,
                                                 "cellEditorPopupPosition": "under",
@@ -1303,8 +1361,8 @@ def failedmodules_table(click_data, faculty):
                                 'field': 'surname'
                             },
                             {
-                                "headerName": "Failed Modules",
-                                'field': 'failedmodules',
+                                "headerName": "Decision",
+                                'field': 'decision',
                                 "cellEditorPopup": True,
 
                                 "cellEditorPopupPosition": "under",
@@ -1365,8 +1423,8 @@ def failedmodules_table(click_data, faculty):
                             'field': 'surname'
                         },
                         {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
+                            "headerName": "Decision",
+                            'field': 'decision',
                             "cellEditorPopup": True,
                             "cellEditorPopupPosition": "under",
                         }
@@ -1427,8 +1485,8 @@ def failedmodules_table(click_data, faculty):
                             'field': 'surname'
                         },
                         {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
+                            "headerName": "Decision",
+                            'field': 'decision',
 
                             "cellEditorPopup": True,
                             "cellEditorPopupPosition": "under",
@@ -1531,8 +1589,8 @@ def failedmodules_programme_table(click_data, faculty, programme, attendancetype
                                 'field': 'surname'
                             },
                             {
-                                "headerName": "Failed Modules",
-                                'field': 'failedmodules',
+                                "headerName": "Decision",
+                                'field': 'decision',
                                 "cellEditorPopup": True,
 
                                 "cellEditorPopupPosition": "under",
@@ -1593,8 +1651,8 @@ def failedmodules_programme_table(click_data, faculty, programme, attendancetype
                             'field': 'surname'
                         },
                         {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
+                            "headerName": "decision",
+                            'field': 'decision',
                             "cellEditorPopup": True,
                             "cellEditorPopupPosition": "under",
                         }
@@ -1655,8 +1713,8 @@ def failedmodules_programme_table(click_data, faculty, programme, attendancetype
                             'field': 'surname'
                         },
                         {
-                            "headerName": "Failed Modules",
-                            'field': 'failedmodules',
+                            "headerName": "Decision",
+                            'field': 'decision',
 
                             "cellEditorPopup": True,
                             "cellEditorPopupPosition": "under",
@@ -1943,17 +2001,17 @@ def output_failedmodules_selected_rows(n_clicks, selected_rows, opened):
 def decision_table(click_data, faculty):
     ctx = dash.callback_context
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    df = data[data['faculty'] == faculty].drop_duplicates(
-        ['regnum'], keep='last')
+    df = data[data['faculty'] == faculty]
     decisions = df['decision'].unique().tolist()
     if trigger_id == 'decision_distribution':
 
         # get vendor name from clickData
         if click_data is not None:
-            decision = click_data['points'][0]['label']
+            decision = click_data['points'][0]['label'].split('(')[0]
             # print(academicyear.split('.'))
             if decision in decisions:
-                new_df = df[df['decision'] == decision]
+                new_df = df[df['decision'] == decision].drop_duplicates(
+                    ['regnum'], keep='last')
                 ag_table = dmc.Accordion(
                     children=[
                         dmc.AccordionItem(
@@ -2006,8 +2064,8 @@ def decision_table(click_data, faculty):
                                                     'field': 'surname'
                                                 },
                                                 {
-                                                    "headerName": "Failed Modules",
-                                                    'field': 'failedmodules',
+                                                    "headerName": "Decision",
+                                                    'field': 'decision',
 
                                                     "cellEditorPopup": True,
                                                     "cellEditorPopupPosition": "under",
@@ -2034,12 +2092,13 @@ def decision_table(click_data, faculty):
                 return ag_table
 
         else:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
+                ['regnum'], keep='last')
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
                         [
-                            dmc.AccordionControl(f"{decisions[0]}",
+                            dmc.AccordionControl(f"{decisions[-1]}",
                                                  icon=DashIconify(
                                                      icon="tabler:user",
                                                      width=20,
@@ -2087,8 +2146,8 @@ def decision_table(click_data, faculty):
                                                 'field': 'surname'
                                             },
                                             {
-                                                "headerName": "Failed Modules",
-                                                'field': 'failedmodules',
+                                                "headerName": "Decision",
+                                                'field': 'decision',
 
                                                 "cellEditorPopup": True,
                                                 "cellEditorPopupPosition": "under",
@@ -2115,12 +2174,13 @@ def decision_table(click_data, faculty):
             return ag_table
     else:
         if len(decisions) > 0:
-            new_df = df[df["decision"] == decisions[0]]
+            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
+                ['regnum'], keep='last')
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
                         [
-                            dmc.AccordionControl(f"{decisions[0]}",
+                            dmc.AccordionControl(f"{decisions[-1]}",
                                                  icon=DashIconify(
                                                      icon="tabler:user",
                                                      width=20,
@@ -2168,8 +2228,8 @@ def decision_table(click_data, faculty):
                                                 'field': 'surname'
                                             },
                                             {
-                                                "headerName": "Failed Modules",
-                                                'field': 'failedmodules',
+                                                "headerName": "Decision",
+                                                'field': 'decision',
 
                                                 "cellEditorPopup": True,
                                                 "cellEditorPopupPosition": "under",
@@ -2303,6 +2363,30 @@ def output_programme_selected_rows(n_clicks, selected_rows, opened):
                         dmc.Col(dmc.Text("Programme"), span=6),
                         dmc.Col(
                             dmc.Text(f"{student_info['programme'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Attendance Type"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['attendancetype']}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Academic Year"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['academicyear']}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Semester"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['semester']}"), span=6),
                     ],
                     gutter="xl",
                 ),
@@ -2504,6 +2588,30 @@ def output_selected_rows(n_clicks, selected_rows, opened):
                         dmc.Col(dmc.Text("Programme"), span=6),
                         dmc.Col(
                             dmc.Text(f"{student_info['programme'].iloc[0]}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Attendance Type"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['attendancetype']}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Academic Year"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['academicyear']}"), span=6),
+                    ],
+                    gutter="xl",
+                ),
+                dmc.Grid(
+                    children=[
+                        dmc.Col(dmc.Text("Semester"), span=6),
+                        dmc.Col(
+                            dmc.Text(f"{selected_rows[0]['semester']}"), span=6),
                     ],
                     gutter="xl",
                 ),

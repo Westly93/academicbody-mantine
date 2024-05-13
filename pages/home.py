@@ -1,3 +1,4 @@
+import os
 import dash
 import numpy as np
 import pandas as pd
@@ -20,24 +21,47 @@ def apply_grading_rule(grading_rule, mark):
     return grade
 
 
+def determine_decision(group):
+    if 'F' in group['grade'].values or 'Fail' in group['grade'].values or "T" in group['grade'].values or "EX" in group['grade'].values:
+        if 'F' in group['grade'].values or 'Fail' in group['grade'].values:
+            return 'FAILED AT LEAST ONE MODULE'
+        elif 'T' in group['grade'].values:
+            return 'TO WRITE AS FIRST ATTEMPT'
+        elif "EX" in group['grade'].values:
+            return 'EXCEMPTED ON AT LEAST ONE MODULE'
+    else:
+        return 'PASSED ALL MODULES'
+
+
+parent_dir = os.path.dirname(__file__)
+grad_parent = os .path.dirname(parent_dir)
+file_path = os.path.join(grad_parent, 'data/period220.csv')
+# print(file_path)
+
+
 def load_dataframe():
-    data = pd.read_csv("./data/period220.csv")
+    data = pd.read_csv('./data/period220.csv')
     # data = data.drop(columns=['mark.1', 'id'])
     # data = data.drop_duplicates(['regnum', 'module'], keep='last')
     data['grade'] = data.apply(lambda row: apply_grading_rule(
         row['gradingrule'], row['mark']), axis=1)
 
     # Create the 'decision' column based on grades
-    data['decision'] = np.where(data['grade'].isin(['F', 'Fail']), 'FAILED AT LEAST ONE MODULE',
-                                np.where(data['grade'] == 'EX', 'EXAMPTED ON AT LEAST ONE MODULE',
-                                         np.where(data['grade'] == 'T', 'TO WRITE ON FIRST ATTEMPT',
-                                                  'PASSED ALL MODULES')))
+    df = data.groupby('regnum').apply(
+        determine_decision).reset_index(name='decision')
+    new_df = data.merge(df, on='regnum', how='left')
+    new_df['decision'] = np.where(new_df['grade'].isin(
+        ['F', 'Fail']), 'FAILED AT LEAST ONE MODULE', new_df['decision'])
+    new_df['decision'] = np.where(
+        new_df['grade'] == "EX", 'EXCEMPTED ON AT LEAST ONE MODULE', new_df['decision'])
+    new_df['decision'] = np.where(
+        new_df['grade'] == "T", 'TO WRITE AS FIRST ATTEMPT', new_df['decision'])
 
     # Process the 'gender' column
-    data['gender'] = data['gender'].replace(
+    new_df['gender'] = new_df['gender'].replace(
         {'female': 'Female', 'male': 'Male', "MALE": "Male", "FEMALE": "Female", "M": "Male", "F": "Female"})
 
-    return data
+    return new_df
 
 
 """ def create_table(df):
@@ -54,6 +78,7 @@ faculty_selection = dmc.Select(
     label="Select Faculty",
     id="faculty_selection",
     searchable=True,
+    # clearable=True,
     data=faculties,
     value=faculties[0],
 
@@ -62,7 +87,7 @@ faculty_selection = dmc.Select(
 dash.register_page(__name__,
                    path='/',  # '/' is home page and it represents the url
                    name='Home',  # name of page, commonly used as name of link
-                   title='Academicbody',  # title that appears on browser's tab
+                   title='Academicboard',  # title that appears on browser's tab
                    image='logo.png',  # image in the assets folder
                    description='Histograms are the new bar charts.'
                    )
@@ -169,6 +194,7 @@ def layout(**kwargs):
         dmc.Select(
             label="Select Programme",
             searchable=True,
+            # clearable=True,
             id="programme_selection",
 
         ),
@@ -179,6 +205,7 @@ def layout(**kwargs):
                     dmc.Select(
                         label="Select Attendance Type",
                         searchable=True,
+                        # clearable=True,
                         id="attendancetype_selection",
 
                     ),
@@ -188,6 +215,7 @@ def layout(**kwargs):
                     dmc.Select(
                         label="Select Academic Year",
                         searchable=True,
+                        # clearable=True,
                         id="academicyear_selection",
                     ),
 
@@ -196,6 +224,7 @@ def layout(**kwargs):
                     dmc.Select(
                         label="Select Semester",
                         searchable=True,
+                        # clearable=True,
                         id="semester_selection",
 
                     )
@@ -206,7 +235,6 @@ def layout(**kwargs):
         ),
         dmc.Grid(
             children=[
-
                 dmc.Col([
                     dmc.Paper(
                         children=[
@@ -992,8 +1020,54 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
             # print(academicyear.split('.'))
             if decision in decisions:
 
-                new_df = df[df['decision'] == decision].drop_duplicates(
-                    ['regnum'], keep='last')
+                new_df = df[df['decision'] == decision]
+                if decision == "FAILED AT LEAST ONE MODULE":
+                    grouped_data = new_df[new_df['grade'].isin(['Fail', 'F'])].groupby(
+                        'regnum')['module'].apply(list).reset_index(name="failedmodules")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "Failed Modules",
+                        'field': 'failedmodules',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+                elif decision == 'EXAMPTED ON AT LEAST ONE MODULE':
+                    grouped_data = new_df[new_df['grade'] == 'EX'].groupby(
+                        'regnum')['module'].apply(list).reset_index(name="exampted_modules")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "Exampted Modules",
+                        'field': 'exampted_modules',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+                elif decision == "TO WRITE AS FIRST ATTEMPT":
+                    grouped_data = new_df[new_df['grade'] == 'T'].groupby('regnum')['module'].apply(
+                        list).reset_index(name="modules_to_write_as_first_attempt")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "To Write As First Attempt Modules",
+                        'field': 'modules_to_write_as_first_attempt',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+
+                else:
+                    new_df = new_df.drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "decision",
+                        'field': 'decision',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+
                 # print("You clicked", new_df)
                 ag_table = dmc.Accordion(
                     children=[
@@ -1048,13 +1122,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                                                     "headerName": "Surname",
                                                     'field': 'surname'
                                                 },
-                                                {
-                                                    "headerName": "Decision",
-                                                    'field': 'decision',
-
-                                                    "cellEditorPopup": True,
-                                                    "cellEditorPopupPosition": "under",
-                                                }
+                                                header
                                             ],
                                             columnSize="sizeToFit",
                                             defaultColDef={
@@ -1163,8 +1231,54 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
             return ag_table
     else:
         if len(decisions) > 0:
-            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
-                ['regnum'], keep='last')
+            new_df = df[df["decision"] == decisions[-1]]
+            if decisions[-1] == "FAILED AT LEAST ONE MODULE":
+                grouped_data = new_df[new_df['grade'].isin(['Fail', 'F'])].groupby(
+                    'regnum')['module'].apply(list).reset_index(name="failedmodules")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "Failed Modules",
+                    'field': 'failedmodules',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+            elif decisions[-1] == 'EXAMPTED ON AT LEAST ONE MODULE':
+                grouped_data = new_df[new_df['grade'] == 'EX'].groupby(
+                    'regnum')['module'].apply(list).reset_index(name="exampted_modules")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "Exampted Modules",
+                    'field': 'exampted_modules',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+            elif decisions[-1] == "TO WRITE AS FIRST ATTEMPT":
+                grouped_data = new_df[new_df['grade'] == 'T'].groupby('regnum')['module'].apply(
+                    list).reset_index(name="modules_to_write_as_first_attempt")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "To Write As First Attempt Modules",
+                    'field': 'modules_to_write_as_first_attempt',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+
+            else:
+                new_df = new_df.drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "decision",
+                    'field': 'decision',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
@@ -1218,13 +1332,7 @@ def programme_decision_table(click_data, faculty, programme, attendancetype, aca
                                                 "headerName": "Surname",
                                                 'field': 'surname'
                                             },
-                                            {
-                                                "headerName": "Decision",
-                                                'field': 'decision',
-
-                                                "cellEditorPopup": True,
-                                                "cellEditorPopupPosition": "under",
-                                            }
+                                            header
                                         ],
                                         columnSize="sizeToFit",
                                         defaultColDef={
@@ -2010,8 +2118,52 @@ def decision_table(click_data, faculty):
             decision = click_data['points'][0]['label'].split('(')[0]
             # print(academicyear.split('.'))
             if decision in decisions:
-                new_df = df[df['decision'] == decision].drop_duplicates(
-                    ['regnum'], keep='last')
+                new_df = df[df['decision'] == decision]
+                if decision == "FAILED AT LEAST ONE MODULE":
+                    grouped_data = new_df[new_df['grade'].isin(['Fail', 'F'])].groupby(
+                        'regnum')['module'].apply(list).reset_index(name="failedmodules")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "Failed Modules",
+                        'field': 'failedmodules',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+                elif decision == 'EXAMPTED ON AT LEAST ONE MODULE':
+                    grouped_data = new_df[new_df['grade'] == 'EX'].groupby(
+                        'regnum')['module'].apply(list).reset_index(name="exampted_modules")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "Exampted Modules",
+                        'field': 'exampted_modules',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+                elif decision == "TO WRITE AS FIRST ATTEMPT":
+                    grouped_data = new_df[new_df['grade'] == 'T'].groupby('regnum')['module'].apply(
+                        list).reset_index(name="modules_to_write_as_first_attempt")
+                    new_df = new_df.merge(
+                        grouped_data, on='regnum', how='left').drop_duplicates(
+                        ['regnum'], keep='last')
+                    header = {
+                        "headerName": "To Write As First Attempt Modules",
+                        'field': 'modules_to_write_as_first_attempt',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+
+                else:
+                    header = {
+                        "headerName": "decision",
+                        'field': 'decision',
+                        "cellEditorPopup": True,
+                        "cellEditorPopupPosition": "under",
+                    }
+
                 ag_table = dmc.Accordion(
                     children=[
                         dmc.AccordionItem(
@@ -2063,13 +2215,7 @@ def decision_table(click_data, faculty):
                                                     "headerName": "Surname",
                                                     'field': 'surname'
                                                 },
-                                                {
-                                                    "headerName": "Decision",
-                                                    'field': 'decision',
-
-                                                    "cellEditorPopup": True,
-                                                    "cellEditorPopupPosition": "under",
-                                                }
+                                                header
                                             ],
                                             columnSize="sizeToFit",
                                             defaultColDef={"filter": True},
@@ -2092,8 +2238,7 @@ def decision_table(click_data, faculty):
                 return ag_table
 
         else:
-            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
-                ['regnum'], keep='last')
+            new_df = df[df["decision"] == decisions[-1]]
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
@@ -2174,8 +2319,52 @@ def decision_table(click_data, faculty):
             return ag_table
     else:
         if len(decisions) > 0:
-            new_df = df[df["decision"] == decisions[-1]].drop_duplicates(
-                ['regnum'], keep='last')
+            new_df = df[df["decision"] == decisions[-1]]
+            if decisions[-1] == "FAILED AT LEAST ONE MODULE":
+                grouped_data = new_df[new_df['grade'].isin(['Fail', 'F'])].groupby(
+                    'regnum')['module'].apply(list).reset_index(name="failedmodules")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "Failed Modules",
+                    'field': 'failedmodules',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+            elif decisions[-1] == 'EXAMPTED ON AT LEAST ONE MODULE':
+                grouped_data = new_df[new_df['grade'] == 'EX'].groupby(
+                    'regnum')['module'].apply(list).reset_index(name="exampted_modules")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "Exampted Modules",
+                    'field': 'exampted_modules',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+            elif decisions[-1] == "TO WRITE AS FIRST ATTEMPT":
+                grouped_data = new_df[new_df['grade'] == 'T'].groupby('regnum')['module'].apply(
+                    list).reset_index(name="modules_to_write_as_first_attempt")
+                new_df = new_df.merge(
+                    grouped_data, on='regnum', how='left').drop_duplicates(
+                    ['regnum'], keep='last')
+                header = {
+                    "headerName": "To Write As First Attempt Modules",
+                    'field': 'modules_to_write_as_first_attempt',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+
+            else:
+                header = {
+                    "headerName": "decision",
+                    'field': 'decision',
+                    "cellEditorPopup": True,
+                    "cellEditorPopupPosition": "under",
+                }
+
             ag_table = dmc.Accordion(
                 children=[
                     dmc.AccordionItem(
@@ -2227,13 +2416,7 @@ def decision_table(click_data, faculty):
                                                 "headerName": "Surname",
                                                 'field': 'surname'
                                             },
-                                            {
-                                                "headerName": "Decision",
-                                                'field': 'decision',
-
-                                                "cellEditorPopup": True,
-                                                "cellEditorPopupPosition": "under",
-                                            }
+                                            header
                                         ],
                                         columnSize="sizeToFit",
                                         defaultColDef={"filter": True},
